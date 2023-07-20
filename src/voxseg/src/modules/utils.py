@@ -12,8 +12,6 @@ import matplotlib.cm as cm
 from matplotlib.pyplot import figure
 from matplotlib.patches import Patch
 
-# library imports
-from voxel_world import VoxelWorld
 
 def load_images(directory):
     image_files = sorted([f for f in os.listdir(directory) if f.startswith('img_') and f.endswith('.jpg')])
@@ -169,6 +167,7 @@ def unproject(intrinsics, extrinsics, pixels, depth, max_depth = 1000):
         # scale cam coordinates with depth (raycast them out)
         cam_pts_depth = (cam_pts_norm.T * flat_depth).T
         cam_pts_depth[:,3] = 1  # ensure homogeneous coordinates
+
         wld_pts = (extrinsics[i].cuda() @ cam_pts_depth.T).T  # Transform camera coordinates to world coordinates
         
         wld_pts_unhomo = wld_pts[:, :3]
@@ -209,7 +208,7 @@ def visualize_voxel_classes(voxels, classes, save_dir=None, base_name='default')
 
     plt.show()
 
-def visualize_voxel_occupancy(vxw : VoxelWorld):
+def visualize_voxel_occupancy(vxw):
     occupancy = vxw.grid_count.to(device='cpu').numpy()
 
     occupancy_norm = occupancy / occupancy.max()

@@ -4,15 +4,15 @@ import time
 import torch
 from typing import Union, List, Dict
 
-from ws.utils import *
+from modules.utils import *
 
-from open_vocab_seg.ws_ovseg_model import WSTextFeatureModel, WSImageEncoder
+from modules.ovseg.open_vocab_seg.ws_ovseg_model import WSTextFeatureModel, WSImageEncoder
 
 
 WINDOW_NAME = "OVSeg"
 
 class VoxelWorld:
-    def __init__(self, world_dim, grid_dim, embed_size, cam_intrinsics, voxel_origin=(0,0,0), device='cuda'):
+    def __init__(self, world_dim, grid_dim, embed_size, cam_intrinsics, voxel_origin=(0,0,0), device='cuda', root_dir=None):
         """
         world_dim: tuple (3,), dimension of world (probably in m)
 
@@ -23,15 +23,20 @@ class VoxelWorld:
         embed_size: int, dimension of the feature embeddings
 
         cam_intrinsics: torch.FloatTensor (4,4): intrinsics matrix of camera being used 
+
+        root_dir: the directory from which python is being called (PYTHON_PATH). None if running from current directory
         """
         self.device = device
         self.cam_intrinsics = cam_intrinsics.to(self.device)
-        self.predictor = WSImageEncoder()
+        t0 = time.time()
+        self.predictor = WSImageEncoder(root_dir = root_dir)
+        t1 = time.time()
+        print(f'Image Embeddor Load Time: {t1 - t0}')
 
         model_name = self.predictor.cfg.MODEL.CLIP_ADAPTER.CLIP_MODEL_NAME
         mp_depth = self.predictor.cfg.MODEL.CLIP_ADAPTER.MASK_PROMPT_DEPTH
 
-        t1 = time.time()
+        
         self.text_model = WSTextFeatureModel(model_name, mp_depth)
         t2 = time.time()
         print(f'Clip load time: {t2- t1}')
@@ -61,7 +66,6 @@ class VoxelWorld:
         """
         
         t1 = time.time()
-
         world_locs = self.image_to_world(depths.to(self.device), cam_extrinsics.to(self.device))
         voxel_locs = self.world_to_voxel(world_locs)
 
@@ -159,12 +163,11 @@ class VoxelWorld:
     def get_voxel_classes(self, classes: Union[List[str], Dict[str, List[str]]], min_points_in_voxel=0):
         """
         Inputs:
-            classes: list of class objects, or dictionary of {class name: [prompts for class]}
+            classes: list of class names, or dictionary of {class name: [prompts for class]}
         
         Returns:
             tensor with shape (*self.grid_dim), with each element representing the class label of that voxel
         """
-
         t1 = time.time()
         x,y,z,_ = self.voxels.size()
         
@@ -224,7 +227,7 @@ def batch_test():
     assert end <= len(image_tensor)
     world.batched_update_world(image_tensor[start:end], depths[start:end], cam_locs[start:end])
 
-    voxel_classes = world.get_voxel_classes(prompts)
+    voxel_classes = world._classes(prompts)
     visualize_voxel_classes(voxel_classes, [c for c in prompts.keys()], save_dir=None)
 
 

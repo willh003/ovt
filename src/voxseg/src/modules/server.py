@@ -11,20 +11,19 @@ import numpy as np
 import torch
 
 from modules.data import BackendData
-from modules.config import *
+from modules.voxel_world import VoxelWorld
+from modules.config import world_config, VOXSEG_ROOT_DIR, SERVER_NODE, IMAGE_TOPIC, CLASS_TOPIC, VOXEL_REQUEST_SERVICE
 
 
 class VoxSegServer:
-    def __init__(self, world):
+    def __init__(self):
         """
-        Inputs:
-            world: a VoxelWorld object
-        
-        Creates the vseg node
         Subscribes to the class name and image topics
+
+        The VoxelWorld arguments are defined by config.world_config
         """
-        self.world = world 
-        self.data = BackendData()
+        self.world = VoxelWorld(**world_config, root_dir=VOXSEG_ROOT_DIR) 
+        self.data = BackendData(device='cuda')
         
         rospy.init_node(SERVER_NODE, anonymous=True)
         rospy.Subscriber(IMAGE_TOPIC, DepthImageInfo, self._depth_image_callback)
@@ -36,7 +35,8 @@ class VoxSegServer:
         rospy.spin() # not sure if this will be needed here
 
     def _handle_compute_request(self, req):
-        image_tensor, depths, cam_locs = self.data.get_tensors()
+        
+        image_tensor, depths, cam_locs = self.data.get_tensors(world=self.world)
 
         # NOTE: update the world as images come in instead
         self.world.batched_update_world(image_tensor, depths, cam_locs)
@@ -44,7 +44,8 @@ class VoxSegServer:
 
         x,y,z = voxel_classes.size()
 
-        flattened_voxels = voxel_classes.flatten().int().tolist()
+        voxel_classes_unsigned = voxel_classes + 1 # need to convert them to bytes for ros, but -1 classes will cause issues with this
+        flattened_voxels = voxel_classes_unsigned.flatten().byte().tolist()
         origin = Point32(self.world.voxel_origin[0], self.world.voxel_origin[1], self.world.voxel_origin[2])
         
         resolution = self.world.compute_resolution()
@@ -81,8 +82,11 @@ class VoxSegServer:
         extrinsics_2d = extrinsics_1d.reshape(4,4)
 
         self.data.add_depth_image(np_image, np_depths, extrinsics_2d)
+        print(f'Depth Image {len(self.data.images)} Received')
 
     def _class_name_callback(self, msg):
         classes = list(msg.classes)
         self.data.add_classes(classes)
+
+        print(f'Classes recieved: {classes}')
         

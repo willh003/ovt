@@ -9,9 +9,10 @@ from voxseg.srv import VoxelComputation
 
 from cv_bridge import CvBridge
 import numpy as np
+import torch
 from typing import List
 
-from modules.config import *
+from modules.config import CLIENT_NODE, CLASS_TOPIC, IMAGE_TOPIC, VOXEL_REQUEST_SERVICE
 
 
 class VoxSegClient:
@@ -21,6 +22,10 @@ class VoxSegClient:
         """
 
         rospy.init_node(CLIENT_NODE, anonymous=True)
+
+        # Important: initialize the pubs before starting to publish
+        self.image_pub = rospy.Publisher(IMAGE_TOPIC, DepthImageInfo, queue_size=10)
+        self.class_pub = rospy.Publisher(CLASS_TOPIC, Classes, queue_size=10)
 
     def publish_depth_image(self, image, depth_map, extrinsics):
         """
@@ -40,8 +45,8 @@ class VoxSegClient:
         full_msg.cam_extrinsics = cam_msg
 
         
-        pub = rospy.Publisher(IMAGE_TOPIC, DepthImageInfo, queue_size=10)
-        pub.publish(full_msg)
+        #pub = rospy.Publisher(IMAGE_TOPIC, DepthImageInfo, queue_size=10)
+        self.image_pub.publish(full_msg)
 
     def publish_class_names(self, names: List[str]):
         """
@@ -51,18 +56,31 @@ class VoxSegClient:
         class_msg = Classes()
         class_msg.classes = names
 
-        pub = rospy.Publisher(CLASS_TOPIC, DepthImageInfo, queue_size=10)
-        pub.publish(class_msg)
+        self.class_pub.publish(class_msg)
 
-    def request_voxel_computation(self):
-        rospy.wait_for_service('compute_data')
+    def request_voxel_computation(self, min_pts_in_voxel=0):
+        rospy.wait_for_service(VOXEL_REQUEST_SERVICE)
         try:
             compute_data_service = rospy.ServiceProxy(VOXEL_REQUEST_SERVICE, VoxelComputation)
-            response = compute_data_service()
-            return response.result
+            voxel_response = compute_data_service(min_pts_in_voxel)
+            voxel_msg = voxel_response.voxels
+
+            voxels= self._voxels_from_msg(voxel_msg)
+            breakpoint()
+            return voxels
         except rospy.ServiceException as e:
             rospy.logerr("Service call failed: %s", e)
             return None
+
+    def _voxels_from_msg(self,msg: VoxelGrid):
+        voxels: torch.Tensor = torch.as_tensor(msg.data).float()
+        voxels -= 1 # the backend adds 1 to the voxel classes, in order to encode the array in bytes
+
+        #voxel_grid_data = np.array(msg.data, dtype=np.int8)
+        voxel_grid_shape = (msg.size_x, msg.size_y, msg.size_z)
+        voxels = voxels.view(*voxel_grid_shape)
+        return voxels
+
 
     def _get_image_msg(self, image, timestamp) -> Image:
         """

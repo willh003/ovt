@@ -1,5 +1,6 @@
 import logging
 from typing import Tuple
+import os
 
 import numpy as np
 import torch
@@ -21,14 +22,14 @@ from .modeling.clip_adapter import (
 )
 from .mask_former_model import MaskFormer
 from .utils.misc import get_gt_binary_masks
-from open_vocab_seg.modeling.clip_adapter.utils import build_clip_model
+from modules.ovseg.open_vocab_seg.modeling.clip_adapter.utils import build_clip_model
 
 from detectron2.projects.deeplab import add_deeplab_config
 from detectron2.data.detection_utils import read_image
 from detectron2.utils.logger import setup_logger
-from open_vocab_seg import add_ovseg_config
+from modules.ovseg.open_vocab_seg import add_ovseg_config
 
-from open_vocab_seg.utils import VisualizationDemo
+from modules.ovseg.open_vocab_seg.utils import VisualizationDemo
 from detectron2.engine.defaults import DefaultPredictor
 
 @META_ARCH_REGISTRY.register()
@@ -192,11 +193,26 @@ class WSDemo(MaskFormer):
         return semseg, regions
 
 class WSImageEncoder(DefaultPredictor):
-    def __init__(self):
+    def __init__(self, root_dir=None, ovseg_dir='modules/ovseg'):
+        """
+        Inputs:
+            root_dir: the directory from which python is being called (PYTHON_PATH)
+            ovseg_dir: the relative installation path of ovseg relative to root_dir
+        """
 
-        config_file = 'configs/ovseg_ws_demo.yaml'
-        opts = ['MODEL.WEIGHTS', 'models/ovseg_swinbase_vitL14_ft_mpt.pth']
-        cfg = self.setup_cfg(config_file, opts)
+        # handle case where ovseg is called from outside the root
+        # main use case is for ros
+        config_dir  = 'configs/ovseg_ws_demo.yaml'
+        weights_file = 'models/ovseg_swinbase_vitL14_ft_mpt.pth'
+        if root_dir:
+            config_path = os.path.join(root_dir, ovseg_dir, config_dir) 
+            weights_path = os.path.join(root_dir, ovseg_dir, weights_file)
+        else:
+            weights_path = weights_file
+            config_path = config_dir
+        
+        opts = ['MODEL.WEIGHTS', weights_path]
+        cfg = self.setup_cfg(config_path, opts)
 
         super().__init__(cfg)
 

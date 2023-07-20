@@ -1,17 +1,21 @@
 import torch
+import numpy as np
 
 class BackendData:
-    def __init__(self):
+    def __init__(self, device):
         self.images = []
         self.depths = []
         self.extrinsics = []
         self.classes = []
+        self.device = device
 
     def add_depth_image(self, image, depths, extrinsics):
         """
         Inputs:
             image: np array of size (height, width, channels), representing a BGR image
+            
             depths: np array of size (height, width)
+            
             extrinsics: np array of size (4,4)
         """
         self.images.append(image)
@@ -27,10 +31,21 @@ class BackendData:
 
     def get_tensors(self, world):
         """
-        Returns the depths, images, and extrinsics currently stored as torch tensors
+        Inputs:
+            world: the world for this data (must contain a predictor)
+        Returns: the current depths, images, and extrinsics as torch.tensors
+            images: b, 3, h, w
+            
+            depths: b, 1, h, w
+            
+            extrinsics: b, 4, 4
         """
-        depths = torch.stack(self.depths)
-        images  = world.predictor.image_list_to_tensor(self.images)
-        cam_locs = torch.stack(self.cam_locs)
+        depths = np.stack(self.depths)
+        image_tensor  = world.predictor.image_list_to_tensor(self.images)
+        extrinsics = np.stack(self.extrinsics)
 
-        return images, depths, cam_locs
+        depth_tensor = torch.from_numpy(depths).to(self.device)
+        depth_tensor = depth_tensor.unsqueeze(1)
+        extr_tensor = torch.from_numpy(extrinsics).float().to(self.device)
+
+        return image_tensor, depth_tensor, extr_tensor
