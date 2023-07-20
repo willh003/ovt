@@ -1,0 +1,3 @@
+<launch>
+  <node pkg="voxseg" type="server_node.py" name="server_node" output="screen"/>
+</launch>

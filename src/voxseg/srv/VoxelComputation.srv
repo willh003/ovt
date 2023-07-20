@@ -1,0 +1,3 @@
+int32 min_pts_in_voxel
+---
+costmap_2d/VoxelGrid voxels

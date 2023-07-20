@@ -1,0 +1,3 @@
+<launch>
+  <node pkg="voxseg" type="rviz_voxel_node.py" name="rviz_voxel_node" output="screen"/>
+</launch>
