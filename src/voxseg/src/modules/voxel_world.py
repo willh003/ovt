@@ -58,7 +58,10 @@ class VoxelWorld:
         """
         return self.grid_dim / self.world_dim
 
-        
+    def reset_world(self):
+        self.voxels = torch.zeros_like(self.voxels)
+        self.grid_count = torch.zeros_like(self.grid_count)
+    
     def _update_world(self, images, depths, cam_extrinsics):
         """
         Behavior:
@@ -96,7 +99,7 @@ class VoxelWorld:
         """
         Runs the model on all_images, in batches of size max_batch_size
         
-        This is to avoid memory overflow when dealing with large sets of images
+        max_batch_size avoids memory overflow when dealing with large sets of images
         """
         splits = list(range(0, len(all_images), max_batch_size))
         splits.append(len(all_images)) # ensure the leftovers are still included

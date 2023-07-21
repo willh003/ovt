@@ -3,4 +3,4 @@
 from modules.server import VoxSegServer
 
 if __name__ == "__main__":
-    server = VoxSegServer()
+    server = VoxSegServer(batch_size=None)

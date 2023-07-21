@@ -3,6 +3,10 @@ import torch.nn.functional as F
 import os
 from PIL import Image
 from detectron2.data.detection_utils import read_image
+from visualization_msgs.msg import Marker, MarkerArray
+from std_msgs.msg import ColorRGBA
+from geometry_msgs.msg import Vector3, Point, Quaternion, Pose
+from costmap_2d.msg import VoxelGrid
 
 # python imports
 import numpy as np
@@ -14,6 +18,16 @@ from matplotlib.patches import Patch
 
 
 def load_images(directory):
+    """
+    Returns: 
+        images: list[np.ndarray, shape (h, w, c)]
+
+        depth: torch.tensor (b, 1, h, w)
+
+        cam_locs: torch.tensor (b, 4, 4)
+
+        (for each file titled img_*, depth_*, cam_loc_* in directory)
+    """
     image_files = sorted([f for f in os.listdir(directory) if f.startswith('img_') and f.endswith('.jpg')])
     depth_files = sorted([f for f in os.listdir(directory) if f.startswith('depth_') and f.endswith('.pt')])
     cam_loc_files = sorted([f for f in os.listdir(directory) if f.startswith('cam_loc_') and f.endswith('.pt')])
@@ -176,6 +190,64 @@ def unproject(intrinsics, extrinsics, pixels, depth, max_depth = 1000):
 
     return all_wld_pts
 
+############### ROS ##################
+
+def voxels_from_msg(msg: VoxelGrid):
+    voxels: torch.Tensor = torch.as_tensor(msg.data).float()
+    voxels -= 1 # the backend adds 1 to the voxel classes, in order to encode the array in bytes
+    voxel_grid_shape = (msg.size_x, msg.size_y, msg.size_z)
+    voxels = voxels.view(*voxel_grid_shape)
+
+    resolutions = torch.as_tensor([msg.resolutions.x, msg.resolutions.y, msg.resolutions.z])
+    grid_dim = torch.as_tensor(tuple(voxels.size()))
+    world_dim = grid_dim / resolutions
+    return voxels, world_dim
+
+################ Visualization ################
+
+def get_ros_markers(voxels : torch.Tensor, world_dim: torch.Tensor) -> MarkerArray:
+    """
+    Inputs:
+        voxels: shape (x,y,z), containing values in [0, n), where n represents the number of classes
+        world_dim: shape (3)
+
+    Returns:
+        a MarkerArray containing markers for each class and corresponding colors
+    """
+    
+
+    size_x, size_y, size_z = voxels.size()
+    world_x, world_y, world_z = world_dim[0], world_dim[1], world_dim[2]
+    resolution = torch.Tensor([world_x/size_x, world_y/size_y, world_z/size_z])
+
+    colormap = cm.get_cmap('turbo') 
+    voxel_classes_scaled = voxels / voxels.max()
+
+    grid = MarkerArray()
+    count = 0
+    for i in range(size_x):
+        for j in range(size_y):
+            for k in range(size_z):
+                value = voxel_classes_scaled[i,j,k]
+                if value >= 0: # -1 indicates the voxel is empty
+                    loc = Point(x=i*resolution[0], y=j*resolution[1], z=k*resolution[2])
+                    quat = Quaternion(x=0,y=0,z=0,w=1)
+                    pose_msg = Pose(position = loc, orientation=quat)
+
+                    color = colormap(value)
+                    color_msg = ColorRGBA(r=color[0],g=color[1],b=color[2],a=color[3])
+                    marker = Marker()
+                    marker.header.frame_id='world'
+                    marker.id=count
+                    count+=1
+                    marker.color=color_msg
+                    marker.pose=pose_msg
+                    marker.type=marker.CUBE
+                   # marker.lifetime = rospy.Duration(secs=10)
+                    marker.scale = Vector3(x=resolution[0],y=resolution[1],z=resolution[2])
+                    grid.markers.append(marker)
+
+    return grid
 
 
 def visualize_voxel_classes(voxels, classes, save_dir=None, base_name='default'):
