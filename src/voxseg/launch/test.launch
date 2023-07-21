@@ -1,3 +1,0 @@
-<launch>
-  <node pkg="voxseg" type="test_node.py" name="test_node" output="screen"/>
-</launch>

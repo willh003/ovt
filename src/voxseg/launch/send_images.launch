@@ -1,0 +1,3 @@
+<launch>
+  <node pkg="voxseg" type="send_images.py" name="send_images" output="screen"/>
+</launch>

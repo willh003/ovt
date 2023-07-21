@@ -230,7 +230,7 @@ def batch_test():
     assert end <= len(image_tensor)
     world.batched_update_world(image_tensor[start:end], depths[start:end], cam_locs[start:end])
 
-    voxel_classes = world._classes(prompts)
+    voxel_classes = world.get_voxel_classes(prompts)
     visualize_voxel_classes(voxel_classes, [c for c in prompts.keys()], save_dir=None)
 
 

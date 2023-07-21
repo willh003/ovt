@@ -1,0 +1,3 @@
+<launch>
+  <node pkg="voxseg" type="send_classes.py" name="send_classes" output="screen"/>
+</launch>

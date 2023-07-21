@@ -12,26 +12,25 @@ import torch
 
 from modules.data import BackendData
 from modules.voxel_world import VoxelWorld
-from modules.config import world_config, VOXSEG_ROOT_DIR, SERVER_NODE, IMAGE_TOPIC, RESET_TOPIC, CLASS_TOPIC, VOXEL_REQUEST_SERVICE
+from modules.config import WORLD_CONFIG, BATCH_SIZE, MIN_PTS_IN_VOXEL, VOXSEG_ROOT_DIR, SERVER_NODE, IMAGE_TOPIC, RESET_TOPIC, CLASS_TOPIC, VOXEL_REQUEST_SERVICE
 
 
 class VoxSegServer:
-    def __init__(self, batch_size=5):
+    def __init__(self):
         """
         Subscribes to the class name and image topics
 
-        The VoxelWorld arguments are defined by config.world_config
-
-        Inputs: 
-            batch_size: the number of images to accumulate before projecting them into the world. 
-            None to only perform projections on a compute_request
+        The VoxelWorld arguments are defined by config.WORLD_CONFIG
+        
+        BATCH_SIZE is the number of images to accumulate before projecting them into the world. 
+        Set it to None to only perform projections on a compute_request
         """
-        self.world = VoxelWorld(**world_config, root_dir=VOXSEG_ROOT_DIR) 
-        self.data = BackendData(device='cuda', batch_size=batch_size)
+        self.world = VoxelWorld(**WORLD_CONFIG, root_dir=VOXSEG_ROOT_DIR) 
+        self.data = BackendData(device='cuda', batch_size=BATCH_SIZE)
 
         # keep track of number of images seen so far
         self.img_count = 0
-        self.batch_size = batch_size
+        self.batch_size = BATCH_SIZE
         
         rospy.init_node(SERVER_NODE, anonymous=True)
         rospy.Subscriber(IMAGE_TOPIC, DepthImageInfo, self._depth_image_callback)
@@ -52,7 +51,11 @@ class VoxSegServer:
             image_tensor, depths, cam_locs = tensors
             self.world.batched_update_world(image_tensor, depths, cam_locs)
 
-        voxel_classes = self.world.get_voxel_classes(self.data.classes, min_points_in_voxel=int(req.min_pts_in_voxel))
+        if self.data.use_prompts:
+            voxel_classes = self.world.get_voxel_classes(self.data.prompts, min_points_in_voxel=MIN_PTS_IN_VOXEL)
+        else:
+            voxel_classes = self.world.get_voxel_classes(self.data.classes, min_points_in_voxel=MIN_PTS_IN_VOXEL)
+
 
         x,y,z = voxel_classes.size()
 
@@ -106,12 +109,21 @@ class VoxSegServer:
 
     def _reset_callback(self, msg):
         self.world.reset_world()
+        self.data.reset_all()
         self.img_count = 0
         print('World has been reset')
 
     def _class_name_callback(self, msg):
+
+        prompts = {}
+        for kv in list(msg.prompts):
+            key = str(kv.key)
+            values = list(kv.values)
+            prompts[key] = [str(value) for value in values]
+
         classes = list(msg.classes)
-        self.data.add_classes(classes)
+        use_prompts = bool(msg.use_prompts)
+        self.data.add_class_info(classes, prompts, use_prompts)
 
         print(f'Classes recieved: {classes}')
         

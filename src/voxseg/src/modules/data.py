@@ -22,6 +22,8 @@ class BackendData:
             self.recent_extr_data = deque()
 
         self.classes = []
+        self.prompts = {}
+        self.use_prompts = False
         self.device = device
 
         self.image_data_start = 0
@@ -64,12 +66,16 @@ class BackendData:
 
         self.reset_buffers()
 
-    def add_classes(self, classes):
+    def add_class_info(self, classes, prompts, use_prompts):
         """
         Inputs:
             classes: string list containing classes
+            prompts: dict containing classes and corresponding prompts
+            use_prompts: whether to use manually designated prompts
         """
         self.classes = classes
+        self.prompts = prompts
+        self.use_prompts = use_prompts
 
     def get_tensors(self, world) -> Union[Tuple, None]:
         """

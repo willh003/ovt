@@ -1,0 +1,3 @@
+<launch>
+  <node pkg="voxseg" type="request_computation.py" name="request_computation" output="screen"/>
+</launch>

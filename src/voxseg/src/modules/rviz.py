@@ -2,20 +2,22 @@
 
 import rospy
 from costmap_2d.msg import VoxelGrid
-from geometry_msgs.msg import Point32, Vector3, Point, Quaternion, Pose
 from visualization_msgs.msg import Marker, MarkerArray
-from std_msgs.msg import ColorRGBA, Header
+from voxseg.msg import Classes
 import matplotlib.cm as cm
 import torch
 from modules.utils import get_ros_markers, voxels_from_msg
-from modules.config import VOXEL_TOPIC, RVIZ_NODE, MARKER_TOPIC
+from modules.config import VOXEL_TOPIC, CLASS_TOPIC, RVIZ_NODE, MARKER_TOPIC
 
 
 class MarkerPublisher:
     def __init__(self):
+        self.classes = []
         
         rospy.init_node(RVIZ_NODE, anonymous=True)
         rospy.Subscriber(VOXEL_TOPIC, VoxelGrid, self._publish_markers_callback)
+        rospy.Subscriber(CLASS_TOPIC, Classes, self._class_name_callback)
+        self.pub = rospy.Publisher(MARKER_TOPIC, MarkerArray, queue_size=1)
 
         print('RViz Communication Layer Setup')
 
@@ -23,11 +25,14 @@ class MarkerPublisher:
 
     def _publish_markers_callback(self, msg):
         voxels, world_dim = voxels_from_msg(msg)
-        markers = get_ros_markers(voxels, world_dim)
-        publisher = rospy.Publisher(MARKER_TOPIC, MarkerArray, queue_size=1)
-        publisher.publish(markers)
+        markers = get_ros_markers(voxels, world_dim, self.classes)
+        
+        self.pub.publish(markers)
         print('Published Markers')
 
+    def _class_name_callback(self, msg):
+        classes = list(msg.classes)
+        self.classes = classes
 
 def publish_markers(markers: MarkerArray,topic: str = 'voxel_grid_array', publish_rate=1):
     """

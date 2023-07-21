@@ -4,13 +4,13 @@ from costmap_2d.msg import VoxelGrid
 from visualization_msgs.msg import Marker, MarkerArray
 from std_msgs.msg import Int32MultiArray, MultiArrayLayout, MultiArrayDimension
 from sensor_msgs.msg import Image
-from voxseg.msg import DepthImageInfo, TransformationMatrix, Classes
+from voxseg.msg import DepthImageInfo, TransformationMatrix, Classes, StrArrKV
 from voxseg.srv import VoxelComputation
 
 from cv_bridge import CvBridge
 import numpy as np
 import torch
-from typing import List
+from typing import List, Dict, Union
 
 from modules.config import CLIENT_NODE, CLASS_TOPIC, IMAGE_TOPIC, VOXEL_TOPIC, VOXEL_REQUEST_SERVICE
 from modules.utils import voxels_from_msg
@@ -24,8 +24,8 @@ class VoxSegClient:
         rospy.init_node(CLIENT_NODE, anonymous=True)
 
         # Important: initialize the pubs before starting to publish
-        self.image_pub = rospy.Publisher(IMAGE_TOPIC, DepthImageInfo, queue_size=10)
         self.class_pub = rospy.Publisher(CLASS_TOPIC, Classes, queue_size=10)
+        self.image_pub = rospy.Publisher(IMAGE_TOPIC, DepthImageInfo, queue_size=10)
         self.voxel_pub = rospy.Publisher(VOXEL_TOPIC, VoxelGrid, queue_size=10)
 
     def publish_depth_image(self, image, depth_map, extrinsics):
@@ -53,17 +53,30 @@ class VoxSegClient:
         #pub = rospy.Publisher(IMAGE_TOPIC, DepthImageInfo, queue_size=10)
         self.image_pub.publish(full_msg)
 
-    def publish_class_names(self, names: List[str]):
+    def publish_class_names(self, names: Union[List[str], None]=['other'], 
+                            prompts: Union[Dict[str, List[str]], None]=None, 
+                            use_prompts=False):
         """
         Should be called whenever the user enters class names in the extension window
         names: list of class names
+        prompts: dictionary of class identifier to corresponding prompts
+        use_prompts: True to use the user-defined prompts, False to use automatically generated prompts with names
         """
         class_msg = Classes()
-        class_msg.classes = names
 
+        class_msg.use_prompts = use_prompts
+        if use_prompts:
+            ros_prompts = []
+            for key in prompts.keys():
+                prompt_key_value =  StrArrKV(key=key, values=prompts[key])
+                ros_prompts.append(prompt_key_value)
+            class_msg.prompts = ros_prompts
+            class_msg.classes = list(prompts.keys())
+        else:
+            class_msg.classes = names
         self.class_pub.publish(class_msg)
 
-    def request_voxel_computation(self, min_pts_in_voxel=0):
+    def request_voxel_computation(self):
         """
         Publishes the VoxelGrid message returned by the request to VOXEL_TOPIC
 
@@ -76,7 +89,7 @@ class VoxSegClient:
         rospy.wait_for_service(VOXEL_REQUEST_SERVICE)
         try:
             compute_data_service = rospy.ServiceProxy(VOXEL_REQUEST_SERVICE, VoxelComputation)
-            voxel_response = compute_data_service(min_pts_in_voxel)
+            voxel_response = compute_data_service()
             voxel_msg = voxel_response.voxels
             self.voxel_pub.publish(voxel_msg)
 

@@ -205,11 +205,12 @@ def voxels_from_msg(msg: VoxelGrid):
 
 ################ Visualization ################
 
-def get_ros_markers(voxels : torch.Tensor, world_dim: torch.Tensor) -> MarkerArray:
+def get_ros_markers(voxels : torch.Tensor, world_dim: torch.Tensor, classes=['other']) -> MarkerArray:
     """
     Inputs:
         voxels: shape (x,y,z), containing values in [0, n), where n represents the number of classes
         world_dim: shape (3)
+        classes: list of classes
 
     Returns:
         a MarkerArray containing markers for each class and corresponding colors
@@ -221,7 +222,10 @@ def get_ros_markers(voxels : torch.Tensor, world_dim: torch.Tensor) -> MarkerArr
     resolution = torch.Tensor([world_x/size_x, world_y/size_y, world_z/size_z])
 
     colormap = cm.get_cmap('turbo') 
-    voxel_classes_scaled = voxels / voxels.max()
+    num_classes = voxels.max()
+    all_colors = {}
+
+    voxel_classes_scaled = voxels / num_classes
 
     grid = MarkerArray()
     count = 0
@@ -235,6 +239,11 @@ def get_ros_markers(voxels : torch.Tensor, world_dim: torch.Tensor) -> MarkerArr
                     pose_msg = Pose(position = loc, orientation=quat)
 
                     color = colormap(value)
+
+                    # hacky workaround to get the legend to work
+                    # sets are unordered, but order matters for the colors
+                    all_colors[voxels[i,j,k].item()] = color
+
                     color_msg = ColorRGBA(r=color[0],g=color[1],b=color[2],a=color[3])
                     marker = Marker()
                     marker.header.frame_id='world'
@@ -246,6 +255,25 @@ def get_ros_markers(voxels : torch.Tensor, world_dim: torch.Tensor) -> MarkerArr
                    # marker.lifetime = rospy.Duration(secs=10)
                     marker.scale = Vector3(x=resolution[0],y=resolution[1],z=resolution[2])
                     grid.markers.append(marker)
+
+    # Create Markers for Legend
+    for i in range(len(all_colors)):
+        loc = Point(x=0, y=0, z=i*4)
+        quat = Quaternion(x=0,y=0,z=0,w=1)
+        pose_msg = Pose(position = loc, orientation=quat)
+
+        color = all_colors[i]
+        color_msg = ColorRGBA(r=color[0],g=color[1],b=color[2],a=color[3])
+        text_marker = Marker() 
+        text_marker.type = marker.TEXT_VIEW_FACING
+        text_marker.header.frame_id='world'
+        text_marker.id=count
+        text_marker.color=color_msg
+        text_marker.pose=pose_msg
+        text_marker.text= f"Class {i+1}: {classes[i] if i < len(classes) else 'undefined'}"
+        text_marker.scale = Vector3(x=1.5,y=1.5,z=1.5)
+        grid.markers.append(text_marker)
+        count+=1
 
     return grid
 
