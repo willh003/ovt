@@ -44,27 +44,28 @@ def main():
     # If the rate isn't called before publishing the message, it just won't publish
     # Probably means that this just slows it down enough to work
     rospy.Rate(hz=5).sleep()
+    groups = {'terrain':['detritus', 'ground'], 'items':['machinery', 'equipment', 'fire hydrants']}
+
 
     # prompts={'traversable': ['traversable','an image of easy terrain','an image of flat ground','flat ground', 'ground that could be walked on', 'easy to walk on', 'it is easy to walk on this'],
     #         'untraversable': ['untraversable','an image of challenging terrain', 'dangerous terrain', 'an image of bumpy terrain', 'difficult to walk on', 'it is difficult to walk on this'],
     #         'obstacle': ['obstacle','an obstacle', 'this is an obstacle', 'an image of an obstacle', 'this is an image of an obstacle', 'this is in the way']
     #         }
     
-    # prompts = {'machinery': ['bulldozer', 'backhoe', 'heavy machinery', 'machinery'],
-    #            'equipment': ['barrel', 'crate', 'tarp'],
-    #             'detritus': ['rocks', 'detritus', 'bricks'],
-    #             'fire hydrants': ['fire hydrant'],
-    #             'ground': ['ground']
+    prompts = {'machinery': ['bulldozer', 'backhoe', 'heavy machinery', 'machinery'],
+               'equipment': ['barrel', 'crate', 'tarp'],
+                'detritus': ['rocks', 'detritus', 'bricks'],
+                'fire hydrants': ['fire hydrant'],
+                'ground': ['ground']
 
 
-    # }
-    # send_classes(client, prompts)
+    }
+    send_classes(client, prompts, groups)
 
 
     #UNCOMMENT BELOW AND COMMENT ABOVE TO USE CLASS NAMES INSTEAD
-    class_names = ['equipment', 'fire hydrant', 'rocks', 'bricks', 'ground']
-    groups = {'terrain':['rocks', 'bricks', 'ground'], 'items':['equipment', 'fire hydrant']}
-    send_classes(client, class_names, groups)
+    # class_names = ['equipment', 'fire hydrant', 'rocks', 'bricks', 'ground']
+    # send_classes(client, class_names, groups)
 
 if __name__ == '__main__':
     main()
