@@ -10,7 +10,7 @@ import numpy as np
 def send_images(client: VoxSegClient, image_dir=None):
     rate = rospy.Rate(hz=5)
     images, depths, cam_locs = load_images(image_dir)
-    for i in range(5):
+    for i in range(len(images)):
         image = images[i]
         depths_np = depths[i].squeeze().cpu().numpy()
         extrinsics = cam_locs[i].cpu().numpy()
