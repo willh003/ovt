@@ -222,7 +222,7 @@ def get_ros_markers(voxels : torch.Tensor, world_dim: torch.Tensor, classes=['ot
     resolution = torch.Tensor([world_x/size_x, world_y/size_y, world_z/size_z])
 
     colormap = cm.get_cmap('turbo') 
-    num_classes = voxels.max()
+    num_classes = len(classes)
     all_colors = {}
 
     voxel_classes_scaled = voxels / num_classes
@@ -242,7 +242,7 @@ def get_ros_markers(voxels : torch.Tensor, world_dim: torch.Tensor, classes=['ot
 
                     # hacky workaround to get the legend to work
                     # sets are unordered, but order matters for the colors
-                    all_colors[voxels[i,j,k].item()] = color
+                    all_colors[int(voxels[i,j,k].item())] = color
 
                     color_msg = ColorRGBA(r=color[0],g=color[1],b=color[2],a=color[3])
                     marker = Marker()
@@ -257,8 +257,8 @@ def get_ros_markers(voxels : torch.Tensor, world_dim: torch.Tensor, classes=['ot
                     grid.markers.append(marker)
 
     # Create Markers for Legend
-    for i in range(len(all_colors)):
-        loc = Point(x=0, y=0, z=i*4)
+    for i in all_colors.keys():
+        loc = Point(x=0, y=0, z=i*2+5)
         quat = Quaternion(x=0,y=0,z=0,w=1)
         pose_msg = Pose(position = loc, orientation=quat)
 
@@ -270,7 +270,7 @@ def get_ros_markers(voxels : torch.Tensor, world_dim: torch.Tensor, classes=['ot
         text_marker.id=count
         text_marker.color=color_msg
         text_marker.pose=pose_msg
-        text_marker.text= f"Class {i+1}: {classes[i] if i < len(classes) else 'undefined'}"
+        text_marker.text= f"Class {int(i)+1}: {classes[int(i)] if i < len(classes) else 'undefined'}"
         text_marker.scale = Vector3(x=1.5,y=1.5,z=1.5)
         grid.markers.append(text_marker)
         count+=1

@@ -31,8 +31,10 @@ class MarkerPublisher:
         print('Published Markers')
 
     def _class_name_callback(self, msg):
-        classes = list(msg.classes)
-        self.classes = classes
+        """
+        Visualize the groups
+        """
+        self.classes = [group.key for group in list(msg.groups)]
 
 def publish_markers(markers: MarkerArray,topic: str = 'voxel_grid_array', publish_rate=1):
     """

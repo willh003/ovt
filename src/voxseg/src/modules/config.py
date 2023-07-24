@@ -19,9 +19,6 @@ WORLD_CONFIG = {
                     [   0.0000,    0.0000,    0.0000,    1.0000]])
 }
 
-# The minimum number of pixels falling in a voxel for it to be considered valid
-MIN_PTS_IN_VOXEL = 50
-
 ################# ROS INFO ####################
 IMAGE_TOPIC = 'voxseg_image_topic'
 CLASS_TOPIC = 'voxseg_classes_topic'

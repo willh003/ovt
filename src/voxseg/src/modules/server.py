@@ -12,7 +12,7 @@ import torch
 
 from modules.data import BackendData
 from modules.voxel_world import VoxelWorld
-from modules.config import WORLD_CONFIG, BATCH_SIZE, MIN_PTS_IN_VOXEL, VOXSEG_ROOT_DIR, SERVER_NODE, IMAGE_TOPIC, RESET_TOPIC, CLASS_TOPIC, VOXEL_REQUEST_SERVICE
+from modules.config import WORLD_CONFIG, BATCH_SIZE, VOXSEG_ROOT_DIR, SERVER_NODE, IMAGE_TOPIC, RESET_TOPIC, CLASS_TOPIC, VOXEL_REQUEST_SERVICE
 
 
 class VoxSegServer:
@@ -46,15 +46,19 @@ class VoxSegServer:
         
         # Get the last tensors (will be None if in batch mode and no tensors have 
         # been added since the last time get_tensors was called)
+        min_pts_in_voxel = req.min_pts_in_voxel
+
         tensors = self.data.get_tensors(world=self.world)
         if tensors:
             image_tensor, depths, cam_locs = tensors
             self.world.batched_update_world(image_tensor, depths, cam_locs)
 
+
+        #self.world.get_classes_by_groups(self.data.classes, self.data.groups, min_pts_in_voxel)
         if self.data.use_prompts:
-            voxel_classes = self.world.get_voxel_classes(self.data.prompts, min_points_in_voxel=MIN_PTS_IN_VOXEL)
+            voxel_classes = self.world.get_classes_by_groups(self.data.prompts, self.data.groups, min_points_in_voxel=min_pts_in_voxel)
         else:
-            voxel_classes = self.world.get_voxel_classes(self.data.classes, min_points_in_voxel=MIN_PTS_IN_VOXEL)
+            voxel_classes = self.world.get_classes_by_groups(self.data.classes, self.data.groups, min_points_in_voxel=min_pts_in_voxel)
 
 
         x,y,z = voxel_classes.size()
@@ -113,17 +117,28 @@ class VoxSegServer:
         self.img_count = 0
         print('World has been reset')
 
-    def _class_name_callback(self, msg):
-
-        prompts = {}
-        for kv in list(msg.prompts):
+    def KV_list_to_dict(self, kvs):
+        """
+        kvs: list of voxseg.msg.StrArrKV messages 
+        """
+        r = {}
+        for kv in kvs:
             key = str(kv.key)
             values = list(kv.values)
-            prompts[key] = [str(value) for value in values]
+            r[key] = [str(value) for value in values]
+
+        return r
+
+
+
+    def _class_name_callback(self, msg):
+
+        prompts = self.KV_list_to_dict(list(msg.prompts))
+        groups = self.KV_list_to_dict(list(msg.groups))
 
         classes = list(msg.classes)
         use_prompts = bool(msg.use_prompts)
-        self.data.add_class_info(classes, prompts, use_prompts)
+        self.data.add_class_info(classes, prompts, groups, use_prompts)
 
         print(f'Classes recieved: {classes}')
         

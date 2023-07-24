@@ -66,15 +66,17 @@ class BackendData:
 
         self.reset_buffers()
 
-    def add_class_info(self, classes, prompts, use_prompts):
+    def add_class_info(self, classes, prompts, groups, use_prompts):
         """
         Inputs:
             classes: string list containing classes
             prompts: dict containing classes and corresponding prompts
+            groups: dict of groups and corresponding classes 
             use_prompts: whether to use manually designated prompts
         """
         self.classes = classes
         self.prompts = prompts
+        self.groups = groups
         self.use_prompts = use_prompts
 
     def get_tensors(self, world) -> Union[Tuple, None]:

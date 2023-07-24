@@ -54,29 +54,41 @@ class VoxSegClient:
         self.image_pub.publish(full_msg)
 
     def publish_class_names(self, names: Union[List[str], None]=['other'], 
+                            groups:Union[Dict[str, List[str]], None]=None,
                             prompts: Union[Dict[str, List[str]], None]=None, 
                             use_prompts=False):
         """
         Should be called whenever the user enters class names in the extension window
-        names: list of class names
-        prompts: dictionary of class identifier to corresponding prompts
-        use_prompts: True to use the user-defined prompts, False to use automatically generated prompts with names
+        
+        Either names or prompts must be specified.
+        
+        Inputs:
+            names: list of class identifiers. If None, defaults to the identifiers in prompts
+
+            prompts: dictionary of class identifier to corresponding prompts
+            
+            groups: dictionary of group identifier to corresponding class identifiers. Default behavior is that each class identifier gets its own group.
+            
+            use_prompts: True to use the user-defined prompts, False to use automatically generated prompts with names
         """
         class_msg = Classes()
 
         class_msg.use_prompts = use_prompts
         if use_prompts:
-            ros_prompts = []
-            for key in prompts.keys():
-                prompt_key_value =  StrArrKV(key=key, values=prompts[key])
-                ros_prompts.append(prompt_key_value)
-            class_msg.prompts = ros_prompts
+            class_msg.prompts = [StrArrKV(key=key, values=prompts[key]) for key in prompts.keys()]
             class_msg.classes = list(prompts.keys())
         else:
             class_msg.classes = names
+
+        if not groups:
+            class_msg.groups = [StrArrKV(key=name, values=[name]) for name in class_msg.classes]
+        else:
+            ros_groups = [StrArrKV(key=key, values=groups[key]) for key in groups.keys()]
+            class_msg.groups = ros_groups
+
         self.class_pub.publish(class_msg)
 
-    def request_voxel_computation(self):
+    def request_voxel_computation(self, min_pts_in_voxel=0):
         """
         Publishes the VoxelGrid message returned by the request to VOXEL_TOPIC
 
@@ -89,7 +101,7 @@ class VoxSegClient:
         rospy.wait_for_service(VOXEL_REQUEST_SERVICE)
         try:
             compute_data_service = rospy.ServiceProxy(VOXEL_REQUEST_SERVICE, VoxelComputation)
-            voxel_response = compute_data_service()
+            voxel_response = compute_data_service(min_pts_in_voxel)
             voxel_msg = voxel_response.voxels
             self.voxel_pub.publish(voxel_msg)
 

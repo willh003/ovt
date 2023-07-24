@@ -189,10 +189,45 @@ class VoxelWorld:
 
         all_voxel_classes_reshaped = all_voxel_classes.view(x,y,z)
         print(f'Clip inference and similarity calculation time: {time.time()- t1}')
-    
 
         return all_voxel_classes_reshaped
 
+    def get_classes_by_groups(self, classes, groups, min_points_in_voxel):
+        """
+        classes: [class1, class2, ...]
+        groups: {group1: [class1, class3], group2: [class2], ...}
+        Requires: a class is in a group iff it is in classes
+        """
+        class_to_group = {}
+        keys = list(groups.keys())
+        for i in range(len(keys)):
+            group_key = keys[i]
+            for cls in groups[group_key]:
+                class_to_group[classes.index(cls)] = i
+
+        t1 = time.time()
+        x,y,z,_ = self.voxels.size()
+        
+        flat_voxels = self.voxels.flatten(end_dim = -2)
+        non_empty_voxel_mask = self.grid_count.flatten() > min_points_in_voxel # considered empty if no point was found in the voxel
+
+        voxels_for_inference = flat_voxels.cuda()[non_empty_voxel_mask.cuda()]
+
+        if type(classes) == dict:
+            labeled_voxel_classes = self.text_model.get_nearest_classes(voxels_for_inference, classes,manual_prompts=True).float()
+        else:
+            labeled_voxel_classes = self.text_model.get_nearest_classes(voxels_for_inference, classes,manual_prompts=False).float()
+
+        all_voxel_classes = torch.ones(x*y*z).cuda() * -1 # -1 means no label
+        all_voxel_classes[non_empty_voxel_mask] = labeled_voxel_classes
+
+        all_voxel_groups = torch.as_tensor([class_to_group.get(i.item(), i.item()) for i in all_voxel_classes])
+
+        all_voxel_groups_reshaped = all_voxel_groups.view(x,y,z)
+        print(f'Clip inference and similarity calculation time: {time.time()- t1}')
+
+        return all_voxel_groups_reshaped
+        
 
 def batch_test():
     #classes = ['ground', 'rock', 'brick', 'fire hydrant', 'heavy machinery']

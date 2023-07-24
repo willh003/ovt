@@ -328,6 +328,7 @@ class WSTextFeatureModel:
         similarities = temperature * normalized_embeddings @ normalized_class_features.T 
         return similarities
 
+
     def get_nearest_classes(self, embeddings,classes,temperature=100,manual_prompts=False):
         """
         embeddings: torch.tensor, (N, embed_dim) 
