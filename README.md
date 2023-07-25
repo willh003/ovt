@@ -12,12 +12,16 @@ Contains rviz_lighting repo (from https://github.com/mogumbo/rviz_lighting.git)
 conda activate voxseg
 pip install rospkg
 ```
-- change the python at the top of the  files in voxseg/src/*.py to the correct python versions (for ovseg, isaacsim, wvn)
-
+- follow the [ovseg installation instructions](https://github.com/facebookresearch/ov-seg/blob/main/INSTALL.md) to create a new python environment with the necessary dependencies for ovseg
+- Download the largest ovseg model, [swinbase_vitL_14](https://github.com/facebookresearch/ov-seg/blob/main/GETTING_STARTED.md), and put it in src/modules/ovseg/models
+- change the python shebang at the top of the files in voxseg/src/*.py to the python version with the necessary packages installed (for ovseg, isaacsim, wvn)
 ```python
 #!/path/to/voxseg/python
 ```
-- Run the following, from the root of the workspace:
+- change the VOXSEG_ROOT_DIR environment variable in voxseg/modules/config.py, to match the root of the voxseg package
+  - This will probably be .../catkin_ws/src/voxseg
+
+- Build and source the workspace (run the following, from the workspace root):
 ```bash
 catkin_make
 source devel/setup.bash
@@ -91,13 +95,13 @@ rosrun rviz rviz
 
 Now, rviz should be running. To view the voxels:
 - Go to displays > global options > fixed frame, and change it from map to world
-  - if world doesn't appear, the previous step was probably skipped
+  - if world doesn't appear, this step was probably skipped
 - Go to "Add" (bottom left of RVIZ) > "By Topic", click on "MarkerArray" under "voxseg_marker_topic", and click "OK"
 
 - If you would like to define your own markers, just publish them to voxseg_marker_topic. They will render with nice colors in rviz
 - If you are using Voxseg, the voxels will be published as they are computed: 
-  - The rviz communication node is listening on 
-  voxseg_voxels_topic'. This is automatically published to after computations are performed
+  - The rviz communication node is listening on 'voxseg_voxels_topic'. This is automatically published to after computations are performed
+  - In order for class names to show up, it is important that they are published while the rviz communication node is running. Otherwise, every class will be labeled "undefined"
 - Limits: it starts getting pretty slow above 100x100x50 resolution (<1hz). It may be necessary to use a Marker.Cube_List for larger scenes
 
 ## Quick Setup
