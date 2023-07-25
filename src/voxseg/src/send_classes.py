@@ -53,20 +53,18 @@ def main():
     #         'obstacle': ['obstacle','an obstacle', 'this is an obstacle', 'an image of an obstacle', 'this is an image of an obstacle', 'this is in the way']
     #         }
     
-    # prompts = {'machinery': ['bulldozer', 'backhoe', 'heavy machinery', 'machinery'],
-    #            'equipment': ['barrel', 'crate', 'tarp'],
-    #             'detritus': ['rocks', 'detritus', 'bricks'],
-    #             'fire hydrants': ['fire hydrant'],
-    #             'ground': ['ground']
-
-
-    # }
-    # send_classes(client, prompts, groups=None)
+    prompts = {'machinery': ['bulldozer', 'backhoe', 'heavy machinery', 'machinery'],
+               'equipment': ['barrel', 'crate', 'tarp'],
+                'detritus': ['rocks', 'detritus', 'bricks'],
+                'fire hydrants': ['fire hydrant'],
+                'ground': ['ground']
+    }
+    send_classes(client, prompts, groups=None)
 
 
     #UNCOMMENT BELOW AND COMMENT ABOVE TO USE CLASS NAMES INSTEAD
-    class_names = ['equipment', 'fire hydrant', 'rocks', 'bricks', 'ground']
-    send_classes(client, class_names, groups=None)
+    #class_names = ['equipment', 'fire hydrant', 'rocks', 'bricks', 'ground']
+    #send_classes(client, class_names, groups=None)
 
 if __name__ == '__main__':
     main()

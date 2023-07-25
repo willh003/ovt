@@ -16,6 +16,10 @@ import matplotlib.cm as cm
 from matplotlib.pyplot import figure
 from matplotlib.patches import Patch
 
+from std_msgs.msg import String
+import json
+import rospy
+
 
 def load_images(directory):
     """
@@ -191,6 +195,31 @@ def unproject(intrinsics, extrinsics, pixels, depth, max_depth = 1000):
     return all_wld_pts
 
 ############### ROS ##################
+
+def convert_dict_to_dictionary_array(dictionary):
+
+    # Convert the Python dictionary to serialized JSON strings
+    dictionary_jsons = [json.dumps({key: value}) for key, value in dictionary.items()]
+
+    # Convert the serialized JSON strings to ROS String messages
+    dictionary_json_msgs = [str(json_str) for json_str in dictionary_jsons]
+
+
+    return dictionary_json_msgs
+
+def convert_dictionary_array_to_dict(dictionary_jsons):
+    # Create an empty dictionary to store the result
+    result_dict = {}
+
+    # Deserialize the JSON strings and populate the result dictionary
+    for json_str in dictionary_jsons:
+        try:
+            data = json.loads(json_str)
+            result_dict.update(data)
+        except ValueError as e:
+            rospy.logerr("Error while deserializing JSON string: %s", str(e))
+
+    return result_dict
 
 def voxels_from_msg(msg: VoxelGrid):
     voxels: torch.Tensor = torch.as_tensor(msg.data).float()

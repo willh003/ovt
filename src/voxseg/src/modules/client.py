@@ -2,7 +2,7 @@
 import rospy
 from costmap_2d.msg import VoxelGrid
 from visualization_msgs.msg import Marker, MarkerArray
-from std_msgs.msg import Int32MultiArray, MultiArrayLayout, MultiArrayDimension
+from std_msgs.msg import String, MultiArrayLayout, MultiArrayDimension
 from sensor_msgs.msg import Image
 from voxseg.msg import DepthImageInfo, TransformationMatrix, Classes, StrArrKV
 from voxseg.srv import VoxelComputation
@@ -11,9 +11,10 @@ from cv_bridge import CvBridge
 import numpy as np
 import torch
 from typing import List, Dict, Union
+import json
 
 from modules.config import CLIENT_NODE, CLASS_TOPIC, IMAGE_TOPIC, VOXEL_TOPIC, VOXEL_REQUEST_SERVICE
-from modules.utils import voxels_from_msg
+from modules.utils import voxels_from_msg, convert_dict_to_dictionary_array
 
 class VoxSegClient:
     def __init__(self):
@@ -42,12 +43,11 @@ class VoxSegClient:
         timestamp = rospy.Time.now()
         image_msg = self._get_image_msg(image, timestamp)
         depth_msg = self._get_depth_msg(depth_map, timestamp)
-        cam_msg = self._get_cam_msg(extrinsics, timestamp)
 
         full_msg = DepthImageInfo()
         full_msg.rgb_image = image_msg
         full_msg.depth_image = depth_msg
-        full_msg.cam_extrinsics = cam_msg
+        full_msg.cam_extrinsics = np.reshape(extrinsics, (16,)).tolist()
 
         
         #pub = rospy.Publisher(IMAGE_TOPIC, DepthImageInfo, queue_size=10)
@@ -75,16 +75,18 @@ class VoxSegClient:
 
         class_msg.use_prompts = use_prompts
         if use_prompts:
-            class_msg.prompts = [StrArrKV(key=key, values=prompts[key]) for key in prompts.keys()]
+            if prompts == None:
+                raise Exception('use_prompts set to True, but no prompts were specified')
+            class_msg.prompts = convert_dict_to_dictionary_array(prompts)
             class_msg.classes = list(prompts.keys())
         else:
             class_msg.classes = names
 
         if not groups:
-            class_msg.groups = [StrArrKV(key=name, values=[name]) for name in class_msg.classes]
+            class_msg.groups = convert_dict_to_dictionary_array({name: [name] for name in class_msg.classes})
         else:
-            ros_groups = [StrArrKV(key=key, values=groups[key]) for key in groups.keys()]
-            class_msg.groups = ros_groups
+            class_msg.groups = convert_dict_to_dictionary_array(groups)
+
 
         self.class_pub.publish(class_msg)
 

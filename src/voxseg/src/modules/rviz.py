@@ -6,7 +6,8 @@ from visualization_msgs.msg import Marker, MarkerArray
 from voxseg.msg import Classes
 import matplotlib.cm as cm
 import torch
-from modules.utils import get_ros_markers, voxels_from_msg
+import json
+from modules.utils import get_ros_markers, voxels_from_msg, convert_dictionary_array_to_dict
 from modules.config import VOXEL_TOPIC, CLASS_TOPIC, RVIZ_NODE, MARKER_TOPIC
 
 
@@ -34,7 +35,9 @@ class MarkerPublisher:
         """
         Visualize the groups
         """
-        self.classes = [group.key for group in list(msg.groups)]
+        groups = convert_dictionary_array_to_dict(msg.groups)
+
+        self.classes = [str(key) for key in groups.keys()]
 
 def publish_markers(markers: MarkerArray,topic: str = 'voxel_grid_array', publish_rate=1):
     """

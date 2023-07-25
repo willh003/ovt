@@ -1,5 +1,7 @@
 #Classes.msg
 string[] classes
-voxseg/StrArrKV[] prompts
-voxseg/StrArrKV[] groups
 bool use_prompts
+
+# Type invariant: prompts and groups are represented as json-serialized strings of dictionaries
+string[] prompts
+string[] groups

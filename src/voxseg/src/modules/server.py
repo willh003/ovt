@@ -8,12 +8,13 @@ from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 
 import numpy as np
+import json
 import torch
 
 from modules.data import BackendData
 from modules.voxel_world import VoxelWorld
 from modules.config import WORLD_CONFIG, BATCH_SIZE, VOXSEG_ROOT_DIR, SERVER_NODE, IMAGE_TOPIC, RESET_TOPIC, CLASS_TOPIC, VOXEL_REQUEST_SERVICE
-
+from modules.utils import convert_dictionary_array_to_dict
 
 class VoxSegServer:
     def __init__(self):
@@ -41,6 +42,9 @@ class VoxSegServer:
         print('Backend Setup')
 
         rospy.spin() # not sure if this will be needed here
+
+    def shutdown(self):
+        rospy.signal_shutdown()
 
     def _handle_compute_request(self, req):
         
@@ -97,7 +101,7 @@ class VoxSegServer:
         depths = bridge.imgmsg_to_cv2(depths_msg, desired_encoding="passthrough")
         np_depths = np.array(depths)
 
-        extrinsics_1d = np.array(extrinsics_msg.matrix)
+        extrinsics_1d = np.array(extrinsics_msg)
         extrinsics_2d = extrinsics_1d.reshape(4,4)
 
         self.data.add_depth_image(np_image, np_depths, extrinsics_2d)
@@ -129,12 +133,20 @@ class VoxSegServer:
 
         return r
 
-
+    def unserialize_string(self, ser):
+        """
+        ser: str, json serialized
+        """
+        return json.loads(ser)
 
     def _class_name_callback(self, msg):
 
-        prompts = self.KV_list_to_dict(list(msg.prompts))
-        groups = self.KV_list_to_dict(list(msg.groups))
+        # prompts = self.KV_list_to_dict(list(msg.prompts))
+        # groups = self.KV_list_to_dict(list(msg.groups))
+
+        prompts = convert_dictionary_array_to_dict(msg.prompts)
+        groups = convert_dictionary_array_to_dict(msg.groups)
+        #groups = self.unserialize_string(str(msg.groups))
 
         classes = list(msg.classes)
         use_prompts = bool(msg.use_prompts)
