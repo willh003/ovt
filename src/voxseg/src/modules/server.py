@@ -79,7 +79,6 @@ class VoxSegServer:
                   size_y=y,
                   size_z=z)
         
-                
         return voxel_response
 
     def _world_dim_callback(self, msg):
