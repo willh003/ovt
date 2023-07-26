@@ -1,10 +1,10 @@
 #!/home/pcgta/.local/share/ov/pkg/isaac_sim-2022.2.0/python.sh
 import rospy
-from costmap_2d.msg import VoxelGrid
+#from costmap_2d.msg import VoxelGrid
 from visualization_msgs.msg import Marker, MarkerArray
 from std_msgs.msg import String, MultiArrayLayout, MultiArrayDimension
 from sensor_msgs.msg import Image
-from voxseg.msg import DepthImageInfo, TransformationMatrix, Classes, StrArrKV
+from voxseg.msg import DepthImageInfo, TransformationMatrix, Classes, StrArrKV, VoxelGrid
 from voxseg.srv import VoxelComputation
 
 from cv_bridge import CvBridge
@@ -104,7 +104,15 @@ class VoxSegClient:
         try:
             compute_data_service = rospy.ServiceProxy(VOXEL_REQUEST_SERVICE, VoxelComputation)
             voxel_response = compute_data_service(min_pts_in_voxel)
-            voxel_msg = voxel_response.voxels
+
+            voxel_msg = VoxelGrid(header= voxel_response.header,
+                                  data=voxel_response.data,
+                                  origin = voxel_response.origin,
+                                  resolutions = voxel_response.resolutions,
+                                  size_x=voxel_response.size_x,
+                                  size_y=voxel_response.size_y,
+                                  size_z=voxel_response.size_z
+                                  )
             self.voxel_pub.publish(voxel_msg)
 
             voxels, world_dim= voxels_from_msg(voxel_msg)

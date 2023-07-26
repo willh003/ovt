@@ -6,7 +6,8 @@ from detectron2.data.detection_utils import read_image
 from visualization_msgs.msg import Marker, MarkerArray
 from std_msgs.msg import ColorRGBA
 from geometry_msgs.msg import Vector3, Point, Quaternion, Pose
-from costmap_2d.msg import VoxelGrid
+from voxseg.msg import VoxelGrid
+#from costmap_2d.msg import VoxelGrid
 
 # python imports
 import numpy as np

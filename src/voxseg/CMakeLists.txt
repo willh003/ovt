@@ -56,6 +56,7 @@ add_message_files(
    StrArrKV.msg
    DepthImageInfo.msg
    Classes.msg
+   VoxelGrid.msg
 
  )
 

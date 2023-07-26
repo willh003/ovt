@@ -51,7 +51,7 @@ class TestCase(unittest.TestCase):
 
 
     def test_4(self):
-        groups = {'terrain':['equipment', 'ground'], 'items':['fire hydrant', 'rocks', 'bricks']}
+        groups = {'terrain':['detritus', 'ground'], 'items':['fire hydrants', 'equipment', 'machinery']}
         prompts = {'machinery': ['bulldozer', 'backhoe', 'heavy machinery', 'machinery'],
                 'equipment': ['barrel', 'crate', 'tarp'],
                     'detritus': ['rocks', 'detritus', 'bricks'],

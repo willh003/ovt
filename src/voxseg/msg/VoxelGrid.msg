@@ -1,6 +1,3 @@
-int32 min_pts_in_voxel
----
-#costmap_2d/VoxelGrid voxels
 std_msgs/Header header
 uint32[] data
 geometry_msgs/Point32 origin

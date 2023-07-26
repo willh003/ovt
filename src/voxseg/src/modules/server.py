@@ -1,7 +1,7 @@
 import rospy
-from costmap_2d.msg import VoxelGrid
+#from costmap_2d.msg import VoxelGrid
 from geometry_msgs.msg import Point32, Vector3
-from voxseg.msg import DepthImageInfo, TransformationMatrix, Classes
+from voxseg.msg import DepthImageInfo, TransformationMatrix, Classes, VoxelGrid
 from voxseg.srv import VoxelComputation, VoxelComputationResponse
 from std_msgs.msg import String
 from sensor_msgs.msg import Image
@@ -74,15 +74,13 @@ class VoxSegServer:
         resolution = self.world.compute_resolution()
         vec_resolution = Vector3(x=resolution[0], y=resolution[1],z=resolution[2])
 
-        voxel_msg = VoxelGrid(data=flattened_voxels, 
+        voxel_response = VoxelComputationResponse(data=flattened_voxels, 
                   origin=origin,
                   resolutions=vec_resolution,
                   size_x=x,
                   size_y=y,
                   size_z=z)
-        
-        voxel_response = VoxelComputationResponse(voxels=voxel_msg)
-        
+                
         return voxel_response
 
 
