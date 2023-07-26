@@ -57,6 +57,7 @@ add_message_files(
    DepthImageInfo.msg
    Classes.msg
    VoxelGrid.msg
+   WorldInfo.msg
 
  )
 

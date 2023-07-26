@@ -1,4 +1,3 @@
-#!/home/pcgta/.local/share/ov/pkg/isaac_sim-2022.2.0/python.sh
 import rospy
 #from costmap_2d.msg import VoxelGrid
 from visualization_msgs.msg import Marker, MarkerArray

@@ -1,7 +1,7 @@
 import rospy
 #from costmap_2d.msg import VoxelGrid
 from geometry_msgs.msg import Point32, Vector3
-from voxseg.msg import DepthImageInfo, TransformationMatrix, Classes, VoxelGrid
+from voxseg.msg import DepthImageInfo, WorldInfo, Classes
 from voxseg.srv import VoxelComputation, VoxelComputationResponse
 from std_msgs.msg import String
 from sensor_msgs.msg import Image
@@ -13,7 +13,7 @@ import torch
 
 from modules.data import BackendData
 from modules.voxel_world import VoxelWorld
-from modules.config import WORLD_CONFIG, BATCH_SIZE, VOXSEG_ROOT_DIR, SERVER_NODE, IMAGE_TOPIC, RESET_TOPIC, CLASS_TOPIC, VOXEL_REQUEST_SERVICE
+from modules.config import WORLD_CONFIG, BATCH_SIZE, VOXSEG_ROOT_DIR, SERVER_NODE, IMAGE_TOPIC, RESET_TOPIC, WORLD_DIM_TOPIC, CLASS_TOPIC, VOXEL_REQUEST_SERVICE
 from modules.utils import convert_dictionary_array_to_dict
 
 class VoxSegServer:
@@ -36,15 +36,13 @@ class VoxSegServer:
         rospy.init_node(SERVER_NODE, anonymous=True)
         rospy.Subscriber(IMAGE_TOPIC, DepthImageInfo, self._depth_image_callback)
         rospy.Subscriber(CLASS_TOPIC, Classes, self._class_name_callback)
+        rospy.Subscriber(WORLD_DIM_TOPIC, WorldInfo, self._world_dim_callback)
         rospy.Subscriber(RESET_TOPIC, String, self._reset_callback)
         rospy.Service(VOXEL_REQUEST_SERVICE, VoxelComputation, self._handle_compute_request)
-
-        print('Backend Setup')
+    
+        print('Backend Has Been Initialized')
 
         rospy.spin() # not sure if this will be needed here
-
-    def shutdown(self):
-        rospy.signal_shutdown()
 
     def _handle_compute_request(self, req):
         
@@ -80,9 +78,13 @@ class VoxSegServer:
                   size_x=x,
                   size_y=y,
                   size_z=z)
+        
                 
         return voxel_response
 
+    def _world_dim_callback(self, msg):
+        self.world.world_dim = torch.FloatTensor(msg.world_dim).to(self.world.device)
+        self.world.grid_dim = torch.FloatTensor(msg.grid_dim).to(self.world.device)
 
     def _depth_image_callback(self, msg):
 

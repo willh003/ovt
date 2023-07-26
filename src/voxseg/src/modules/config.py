@@ -23,6 +23,7 @@ WORLD_CONFIG = {
 IMAGE_TOPIC = 'voxseg_image_topic'
 CLASS_TOPIC = 'voxseg_classes_topic'
 VOXEL_TOPIC = 'voxseg_voxels_topic'
+WORLD_DIM_TOPIC = 'voxseg_world_dim_topic'
 RESET_TOPIC = 'voxseg_reset_topic'
 
 SERVER_NODE = 'voxseg_backend'
