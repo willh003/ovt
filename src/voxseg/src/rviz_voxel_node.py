@@ -1,4 +1,4 @@
-#!/home/pcgta/mambaforge/envs/ovseg/bin/python
+#!/usr/bin/env python
 
 import rospy
 from modules.rviz import MarkerPublisher, test_publish_markers
