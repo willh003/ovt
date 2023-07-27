@@ -1,7 +1,7 @@
 import rospy
 #from costmap_2d.msg import VoxelGrid
 from geometry_msgs.msg import Point32, Vector3
-from voxseg.msg import DepthImageInfo, WorldInfo, Classes
+from voxseg.msg import DepthImageInfo, WorldInfo, Classes, VoxelGrid
 from voxseg.srv import VoxelComputation, VoxelComputationResponse
 from std_msgs.msg import String
 from sensor_msgs.msg import Image
@@ -13,7 +13,7 @@ import torch
 
 from modules.data import BackendData
 from modules.voxel_world import VoxelWorld
-from modules.config import WORLD_CONFIG, BATCH_SIZE, VOXSEG_ROOT_DIR, SERVER_NODE, IMAGE_TOPIC, RESET_TOPIC, WORLD_DIM_TOPIC, CLASS_TOPIC, VOXEL_REQUEST_SERVICE
+from modules.config import WORLD_CONFIG, BATCH_SIZE, VOXSEG_ROOT_DIR, SERVER_NODE, VOXEL_TOPIC, IMAGE_TOPIC, RESET_TOPIC, WORLD_DIM_TOPIC, CLASS_TOPIC, VOXEL_REQUEST_SERVICE
 from modules.utils import convert_dictionary_array_to_dict
 
 class VoxSegServer:
@@ -39,6 +39,7 @@ class VoxSegServer:
         rospy.Subscriber(WORLD_DIM_TOPIC, WorldInfo, self._world_dim_callback)
         rospy.Subscriber(RESET_TOPIC, String, self._reset_callback)
         rospy.Service(VOXEL_REQUEST_SERVICE, VoxelComputation, self._handle_compute_request)
+        self.voxel_pub = rospy.Publisher(VOXEL_TOPIC, VoxelGrid, queue_size=10)
     
         print('Backend Has Been Initialized')
 
@@ -78,6 +79,17 @@ class VoxSegServer:
                   size_x=x,
                   size_y=y,
                   size_z=z)
+        
+        # publish to voxel topic (only for use with rviz while simulation is running)
+        voxel_msg = VoxelGrid(header= voxel_response.header,
+                        data=voxel_response.data,
+                        origin = voxel_response.origin,
+                        resolutions = voxel_response.resolutions,
+                        size_x=voxel_response.size_x,
+                        size_y=voxel_response.size_y,
+                        size_z=voxel_response.size_z
+                        )
+        self.voxel_pub.publish(voxel_msg)
         
                 
         return voxel_response

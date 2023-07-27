@@ -6,7 +6,7 @@ from detectron2.data.detection_utils import read_image
 from visualization_msgs.msg import Marker, MarkerArray
 from std_msgs.msg import ColorRGBA
 from geometry_msgs.msg import Vector3, Point, Quaternion, Pose
-from voxseg.msg import VoxelGrid
+from voxseg.srv import VoxelComputationResponse
 #from costmap_2d.msg import VoxelGrid
 
 # python imports
@@ -222,7 +222,13 @@ def convert_dictionary_array_to_dict(dictionary_jsons):
 
     return result_dict
 
-def voxels_from_msg(msg: VoxelGrid):
+def voxels_from_srv(msg: VoxelComputationResponse):
+    """
+    Given a VoxelComputationRespons msg, extract the voxel structure containing classes
+    Returns:
+        voxels: torch.tensor, shape grid_dim, with values representing classes. NOTE: the first specified class is 0, and the empty class is -1.
+        world_dim: torch.tensor, shape(3,), represents the xyz dimensions of the world
+    """
     voxels: torch.Tensor = torch.as_tensor(msg.data).float()
     voxels -= 1 # the backend adds 1 to the voxel classes, in order to encode the array in bytes
     voxel_grid_shape = (msg.size_x, msg.size_y, msg.size_z)

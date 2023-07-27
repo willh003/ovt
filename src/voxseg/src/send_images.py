@@ -10,7 +10,7 @@ import numpy as np
 def send_images(client: VoxSegClient, image_dir=None):
     rate = rospy.Rate(hz=5)
     images, depths, cam_locs = load_images(image_dir)
-    for i in range(5):
+    for i in range(len(images)):
         image = images[i]
         depths_np = depths[i].squeeze().cpu().numpy()
         extrinsics = cam_locs[i].cpu().numpy()
@@ -24,7 +24,8 @@ def main():
     client = VoxSegClient()
 
     # Directory containing image_*.png, depth_*.pt, cam_loc_*.pt
-    data_dir ='/home/pcgta/Documents/eth/wild_visual_navigation/wild_visual_navigation_orbit/feat-extract-out/test_16'
+    # test_16 contains the pics that actually worked!!!
+    data_dir ='/home/pcgta/Documents/eth/wild_visual_navigation/wild_visual_navigation_orbit/feat-extract-out/test_21'
     send_images(client, data_dir)
 
 

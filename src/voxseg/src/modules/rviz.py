@@ -26,6 +26,10 @@ class MarkerPublisher:
 
     def _publish_markers_callback(self, msg):
         voxels, world_dim = voxels_from_msg(msg)
+
+        for i in range(-1, 6, 1):
+            print(f'Class {i} count: {(voxels==i).sum()}')
+            
         markers = get_ros_markers(voxels, world_dim, self.classes)
         
         self.pub.publish(markers)

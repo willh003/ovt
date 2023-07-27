@@ -57,12 +57,12 @@ def main():
                 'fire hydrants': ['fire hydrant'],
                 'ground': ['ground']
     }
-    send_classes(client, prompts, groups=None)
+    #send_classes(client, prompts, groups=None)
 
 
     #UNCOMMENT BELOW AND COMMENT ABOVE TO USE CLASS NAMES INSTEAD
-    #class_names = ['equipment', 'fire hydrant', 'rocks', 'bricks', 'ground']
-    #send_classes(client, class_names, groups=None)
+    class_names = ['heavy machinery', 'fire hydrant', 'rocks', 'bricks', 'ground']
+    send_classes(client, class_names, groups=None)
 
 if __name__ == '__main__':
     main()

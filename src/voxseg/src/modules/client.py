@@ -13,7 +13,7 @@ from typing import List, Dict, Union
 import json
 
 from modules.config import CLIENT_NODE, CLASS_TOPIC, IMAGE_TOPIC, VOXEL_TOPIC, VOXEL_REQUEST_SERVICE
-from modules.utils import voxels_from_msg, convert_dict_to_dictionary_array
+from modules.utils import voxels_from_srv, convert_dict_to_dictionary_array
 
 class VoxSegClient:
     def __init__(self):
@@ -26,7 +26,6 @@ class VoxSegClient:
         # Important: initialize the pubs before starting to publish
         self.class_pub = rospy.Publisher(CLASS_TOPIC, Classes, queue_size=10)
         self.image_pub = rospy.Publisher(IMAGE_TOPIC, DepthImageInfo, queue_size=10)
-        self.voxel_pub = rospy.Publisher(VOXEL_TOPIC, VoxelGrid, queue_size=10)
 
     def publish_depth_image(self, image, depth_map, extrinsics):
         """
@@ -104,17 +103,9 @@ class VoxSegClient:
             compute_data_service = rospy.ServiceProxy(VOXEL_REQUEST_SERVICE, VoxelComputation)
             voxel_response = compute_data_service(min_pts_in_voxel)
 
-            voxel_msg = VoxelGrid(header= voxel_response.header,
-                                  data=voxel_response.data,
-                                  origin = voxel_response.origin,
-                                  resolutions = voxel_response.resolutions,
-                                  size_x=voxel_response.size_x,
-                                  size_y=voxel_response.size_y,
-                                  size_z=voxel_response.size_z
-                                  )
-            self.voxel_pub.publish(voxel_msg)
 
-            voxels, world_dim= voxels_from_msg(voxel_msg)
+
+            voxels, world_dim= voxels_from_srv(voxel_response)
             return voxels, world_dim
         except rospy.ServiceException as e:
             rospy.logerr("Service call failed: %s", e)
