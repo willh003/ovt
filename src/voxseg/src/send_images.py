@@ -12,6 +12,7 @@ def send_images(client: VoxSegClient, image_dir=None):
     images, depths, cam_locs = load_images(image_dir)
     for i in range(len(images)):
         image = images[i]
+
         depths_np = depths[i].squeeze().cpu().numpy()
         extrinsics = cam_locs[i].cpu().numpy()
         
@@ -25,7 +26,7 @@ def main():
 
     # Directory containing image_*.png, depth_*.pt, cam_loc_*.pt
     # test_16 contains the pics that actually worked!!!
-    data_dir ='/home/pcgta/Documents/eth/wild_visual_navigation/wild_visual_navigation_orbit/feat-extract-out/test_21'
+    data_dir ='/home/pcgta/Documents/eth/wild_visual_navigation/wild_visual_navigation_orbit/feat-extract-out/test_22'
     send_images(client, data_dir)
 
 
