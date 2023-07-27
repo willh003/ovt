@@ -1,34 +1,31 @@
 # VoxSeg for Visual Navigation - ROS Repository
 
-Will Huey, Sean Brynjolfsson
+Construct a voxel representation of clip embeddings in a scene, and visualize them through open vocabulary scene queries. 
 
-Contains OVSeg repo (from: https://github.com/facebookresearch/ov-seg)
-
-Contains rviz_lighting repo (from https://github.com/mogumbo/rviz_lighting.git)
+This repo provides full support for rviz visualization. For visualizations in Nvidia Isaac Sim, see https://github.com/jolfss/voxvis
 
 ## Installation 
-- install rospkg to the python version you will be using. Ex:
+- Create a new conda environment, and install
 ```bash
+conda create -n voxseg
 conda activate voxseg
+```
+- follow the [ovseg installation instructions](https://github.com/facebookresearch/ov-seg/blob/main/INSTALL.md) to install necessary dependencies for ovseg in the voxseg environment
+- Download the largest ovseg model, [swinbase_vitL_14](https://github.com/facebookresearch/ov-seg/blob/main/GETTING_STARTED.md), and put it in src/modules/ovseg/models
+- Install rospkg
+```bash
 pip install rospkg
 ```
-- follow the [ovseg installation instructions](https://github.com/facebookresearch/ov-seg/blob/main/INSTALL.md) to create a new python environment with the necessary dependencies for ovseg
-- Download the largest ovseg model, [swinbase_vitL_14](https://github.com/facebookresearch/ov-seg/blob/main/GETTING_STARTED.md), and put it in src/modules/ovseg/models
-- change the python shebang at the top of the files in voxseg/src/*.py to the python version with the necessary packages installed (for ovseg, isaacsim, wvn)
-```python
-#!/path/to/voxseg/python
-```
-- change the VOXSEG_ROOT_DIR environment variable in voxseg/modules/config.py, to match the root of the voxseg package
-  - This will probably be .../catkin_ws/src/voxseg
 
-- Build and source the workspace (run the following, from the workspace root):
+- Build and source the workspace. To do so, run the following, from the workspace root. Note that the workspace root is the root of this repo, unless you installed voxseg to your own separate catkin workspace:
 ```bash
 catkin_make
 source devel/setup.bash
 ```
 
 ## Instructions for running voxseg 
-IMPORTANT: each new terminal you open to run the nodes, make sure you source devel/setup.bash
+IMPORTANT: whenever you open a new terminal to run the nodes, make sure you run ```source devel/setup.bash```
+
 Basic Example:
 - Modify the world_config and batch_size parameters in modules/config.py, according to your needs
 - Launch the server, and wait for it to print "Backend Setup"
@@ -36,7 +33,7 @@ Basic Example:
 ```bash
 roslaunch voxseg server.launch
 ```
-- Edit data_dir and class_names in main of modules/send_classes.py, modules/send_images
+- Edit data_dir and class_names in main of modules/send_images.py, modules/send_classes.py
 - Publish image data + class names or prompts
 ```bash
 roslaunch voxseg send_images.launch 
@@ -96,13 +93,15 @@ rosrun rviz rviz
 Now, rviz should be running. To view the voxels:
 - Go to displays > global options > fixed frame, and change it from map to world
   - if world doesn't appear, this step was probably skipped
+  
+
 - Go to "Add" (bottom left of RVIZ) > "By Topic", click on "MarkerArray" under "voxseg_marker_topic", and click "OK"
 
 - If you would like to define your own markers, just publish them to voxseg_marker_topic. They will render with nice colors in rviz
 - If you are using Voxseg, the voxels will be published as they are computed: 
   - The rviz communication node is listening on 'voxseg_voxels_topic'. This is automatically published to after computations are performed
   - In order for class names to show up, it is important that they are published while the rviz communication node is running. Otherwise, every class will be labeled "undefined"
-- Limits: it starts getting pretty slow above 100x100x50 resolution (<1hz). It may be necessary to use a Marker.Cube_List for larger scenes
+- Limits: rviz starts getting pretty slow above 100x100x50 voxel grid resolution (<1hz). For larger scenes, check out the Isaac Sim visualization repo, linked at the top of this file. Otherwise, publishing a Marker.Cube_List instead of an array of Marker.Cube objects may improve performance.
 
 ## Quick Setup
 To roscore, catkin_make, and start the rviz nodes and the server node all in one go, run setup_terminals.bash from the root. Then, you just need to supply classes/images, and request a computation.
@@ -113,9 +112,11 @@ Voxseg specific parameters can be found in modules/config.py
 
 For text queries, you can choose to publish either class names or manually defined prompts. If you use class names, each of them will automatically be expanded into a preset list of about 20 prompt templates. If you use prompts, you must define each class id, and the corresponding prompts for it. 
 
-All of the voxseg computations are handled by modules/server.py. The voxseg methods themself are in voxel_world.py.
+You can also choose to combine class ids under groups. If a voxel is classified under any of the class ids, it will be considered part of that group. The groups will then show up in visualization, instead of the class names themselves.
 
-The server is set up to listen on the following topics and services:
+An example is the following: you want to visualize all of the areas corresponding to "rubble" and "equipment". You could create a new group for rubble, and add various classes under it (such as "rocks", "bricks", "debris", etc), and do the same for equipment. Note that every class must be assigned to a group, and the groups must cover every class.
+
+All of the voxseg computations are handled by modules/server.py. The voxseg methods themself are in voxel_world.py. The server is set up to listen on the following topics and services:
 
 - IMAGE_TOPIC:
   - type: voxseg.DepthImageInfo.msg
@@ -134,3 +135,9 @@ The server is set up to listen on the following topics and services:
   - requests a voxel class computation from the server, and returns the voxels with their corresponding classes
   - requires that the server has defined class names and images
 
+## Acknowledgements
+Authors: Will Huey, Sean Brynjolfsson
+
+We use OVSeg (https://github.com/facebookresearch/ov-seg) to obtain per-pixel image embeddings, and CLIP to obtain text embeddings (https://github.com/openai/CLIP). Both of these repos are contained in this one, with slight modifications to suit our needs.
+
+For better rviz voxel visualization, we use rviz_lighting (from https://github.com/mogumbo/rviz_lighting.git).
