@@ -1,4 +1,4 @@
-#!/home/pcgta/mambaforge/envs/ovseg/bin/python
+#!/usr/bin/env python
 
 from modules.client import VoxSegClient
 import rospy

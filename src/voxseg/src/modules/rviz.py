@@ -1,4 +1,4 @@
-#!/home/pcgta/mambaforge/envs/ovseg/bin/python
+#!/home/sean/mambaforge/envs/ovseg/bin/python
 
 import rospy
 #from costmap_2d.msg import VoxelGrid
