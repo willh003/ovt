@@ -64,7 +64,8 @@ class VoxelWorld:
 
         self.voxels = torch.zeros((gx+2,gy+2,gz+2,self.embed_size),device=self.device)
         self.grid_count = torch.zeros((gx+2,gy+2,gz+2),device=self.device) # for the running average
-    
+
+        print(self.voxels.size())
 
     def compute_resolution(self) -> torch.Tensor:
         """

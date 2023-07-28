@@ -104,6 +104,7 @@ class VoxSegServer:
 
     def _world_dim_callback(self, msg):
         self.world.update_dims(msg.world_dim, msg.grid_dim)
+        breakpoint()
         self.world_dim_changed = True
 
     def _depth_image_callback(self, msg):
