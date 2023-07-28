@@ -31,7 +31,6 @@ class VoxSegServer:
 
         # keep track of number of images seen so far
         self.img_count = 0
-        self.world_dim_changed = False
         self.batch_size = BATCH_SIZE
         
         rospy.init_node(SERVER_NODE, anonymous=True)
@@ -52,18 +51,10 @@ class VoxSegServer:
         # been added since the last time get_tensors was called)
         min_pts_in_voxel = req.min_pts_in_voxel
 
-        # If the world dim has changed, re-update the entire world on all the images
-        # Else, only update from the most recent images
-        if self.world_dim_changed:
-            image_tensor, depths, cam_locs = self.data.get_all_tensors(world=self.world)
+        tensors = self.data.get_tensors(world=self.world)
+        if tensors:
+            image_tensor, depths, cam_locs = tensors
             self.world.batched_update_world(image_tensor, depths, cam_locs)
-            self.world_dim_changed = False
-        else:
-            tensors = self.data.get_tensors(world=self.world)
-            if tensors:
-                image_tensor, depths, cam_locs = tensors
-                self.world.batched_update_world(image_tensor, depths, cam_locs)
-
 
         #self.world.get_classes_by_groups(self.data.classes, self.data.groups, min_pts_in_voxel)
         if self.data.use_prompts:
@@ -103,9 +94,11 @@ class VoxSegServer:
         return voxel_response
 
     def _world_dim_callback(self, msg):
+        print('Updating World Dim')
         self.world.update_dims(msg.world_dim, msg.grid_dim)
-        breakpoint()
-        self.world_dim_changed = True
+        image_tensor, depths, cam_locs = self.data.get_all_tensors(world=self.world)
+        self.world.batched_update_world(image_tensor, depths, cam_locs)
+
 
     def _depth_image_callback(self, msg):
 
@@ -162,12 +155,9 @@ class VoxSegServer:
 
     def _class_name_callback(self, msg):
 
-        # prompts = self.KV_list_to_dict(list(msg.prompts))
-        # groups = self.KV_list_to_dict(list(msg.groups))
-
         prompts = convert_dictionary_array_to_dict(msg.prompts)
         groups = convert_dictionary_array_to_dict(msg.groups)
-        #groups = self.unserialize_string(str(msg.groups))
+
 
         classes = list(msg.classes)
         use_prompts = bool(msg.use_prompts)
