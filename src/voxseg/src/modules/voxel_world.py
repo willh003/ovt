@@ -46,11 +46,26 @@ class VoxelWorld:
 
         self.world_dim = torch.FloatTensor(world_dim).to(device)
         self.grid_dim = torch.FloatTensor((gx,gy,gz)).to(device)
+        self.embed_size = embed_size
         self.voxel_origin = torch.FloatTensor(voxel_origin).to(device)
 
         self.voxels = torch.zeros((gx+2,gy+2,gz+2,embed_size),device=device)
         self.grid_count = torch.zeros((gx+2,gy+2,gz+2),device=self.device) # for the running average
     
+    def update_dims(self, world_dim, grid_dim):
+        """
+        world_dim: array_like, shape (3,)
+        grid_dim: array_like, shape(3,)
+        """
+        gx, gy, gz = grid_dim
+
+        self.world_dim = torch.FloatTensor(world_dim).to(self.device)
+        self.grid_dim = torch.FloatTensor((gx,gy,gz)).to(self.device)
+
+        self.voxels = torch.zeros((gx+2,gy+2,gz+2,self.embed_size),device=self.device)
+        self.grid_count = torch.zeros((gx+2,gy+2,gz+2),device=self.device) # for the running average
+    
+
     def compute_resolution(self) -> torch.Tensor:
         """
         returns the resolution given self.grid_dim and self.world_dim 

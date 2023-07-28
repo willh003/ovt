@@ -26,7 +26,7 @@ def main():
 
     # Directory containing image_*.png, depth_*.pt, cam_loc_*.pt
     # test_16 contains the pics that actually worked!!!
-    data_dir ='/home/pcgta/Documents/eth/wild_visual_navigation/wild_visual_navigation_orbit/feat-extract-out/test_22'
+    data_dir ='/home/pcgta/Documents/eth/wild_visual_navigation/wild_visual_navigation_orbit/feat-extract-out/test_26'
     send_images(client, data_dir)
 
 

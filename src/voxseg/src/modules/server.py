@@ -103,8 +103,7 @@ class VoxSegServer:
         return voxel_response
 
     def _world_dim_callback(self, msg):
-        self.world.world_dim = torch.FloatTensor(msg.world_dim).to(self.world.device)
-        self.world.grid_dim = torch.FloatTensor(msg.grid_dim).to(self.world.device)
+        self.world.update_dims(msg.world_dim, msg.grid_dim)
         self.world_dim_changed = True
 
     def _depth_image_callback(self, msg):
