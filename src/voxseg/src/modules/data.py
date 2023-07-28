@@ -79,6 +79,20 @@ class BackendData:
         self.groups = groups
         self.use_prompts = use_prompts
 
+    def get_all_tensors(self, world):
+
+        depths_np = np.stack(self.all_depths)
+        image_tensor = world.predictor.image_list_to_tensor(self.all_images)
+        extrinsics_np = np.stack(self.all_extrinsics)
+
+        depth_tensor = torch.from_numpy(depths_np).to(self.device)
+        depth_tensor = depth_tensor.unsqueeze(1)
+        extr_tensor = torch.from_numpy(extrinsics_np).float().to(self.device)
+
+        self.reset_buffers() # clear recent data, so the same data isn't projected multiple times
+
+        return image_tensor, depth_tensor, extr_tensor
+
     def get_tensors(self, world) -> Union[Tuple, None]:
         """
         Inputs:

@@ -31,6 +31,7 @@ class VoxSegServer:
 
         # keep track of number of images seen so far
         self.img_count = 0
+        self.world_dim_changed = False
         self.batch_size = BATCH_SIZE
         
         rospy.init_node(SERVER_NODE, anonymous=True)
@@ -51,10 +52,17 @@ class VoxSegServer:
         # been added since the last time get_tensors was called)
         min_pts_in_voxel = req.min_pts_in_voxel
 
-        tensors = self.data.get_tensors(world=self.world)
-        if tensors:
-            image_tensor, depths, cam_locs = tensors
+        # If the world dim has changed, re-update the entire world on all the images
+        # Else, only update from the most recent images
+        if self.world_dim_changed:
+            image_tensor, depths, cam_locs = self.data.get_all_tensors(world=self.world)
             self.world.batched_update_world(image_tensor, depths, cam_locs)
+            self.world_dim_changed = False
+        else:
+            tensors = self.data.get_tensors(world=self.world)
+            if tensors:
+                image_tensor, depths, cam_locs = tensors
+                self.world.batched_update_world(image_tensor, depths, cam_locs)
 
 
         #self.world.get_classes_by_groups(self.data.classes, self.data.groups, min_pts_in_voxel)
@@ -97,6 +105,7 @@ class VoxSegServer:
     def _world_dim_callback(self, msg):
         self.world.world_dim = torch.FloatTensor(msg.world_dim).to(self.world.device)
         self.world.grid_dim = torch.FloatTensor(msg.grid_dim).to(self.world.device)
+        self.world_dim_changed = True
 
     def _depth_image_callback(self, msg):
 
