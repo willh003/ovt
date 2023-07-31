@@ -14,11 +14,15 @@ WORLD_CONFIG = {
     'grid_dim': (40,40,10),
     'voxel_origin': (0,0,0),
     'embed_size': 768,
-    'cam_intrinsics': torch.Tensor([[-575.6040,    0.0000,  360.0000,    0.0000],
+}
+
+K_RGB = torch.Tensor([[-575.6040,    0.0000,  360.0000,    0.0000],
                     [   0.0000, -575.6040,  270.0000,    0.0000],
                     [   0.0000,    0.0000,    1.0000,    0.0000],
                     [   0.0000,    0.0000,    0.0000,    1.0000]])
-}
+K_DEPTH = None # if not CAMS_ALIGNED, then this must be set to something
+
+CAMS_ALIGNED = True
 
 ################# ROS INFO ####################
 IMAGE_TOPIC = 'voxseg_image_topic'

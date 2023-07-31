@@ -7,12 +7,12 @@ from typing import Union, List, Dict
 from modules.utils import *
 
 from modules.ovseg.open_vocab_seg.ws_ovseg_model import WSTextFeatureModel, WSImageEncoder
-
+from overloading import overload
 
 WINDOW_NAME = "OVSeg"
 
 class VoxelWorld:
-    def __init__(self, world_dim, grid_dim, embed_size, cam_intrinsics, voxel_origin=(0,0,0), device='cuda', root_dir=None):
+    def __init__(self, world_dim, grid_dim, embed_size, voxel_origin=(0,0,0), device='cuda', root_dir=None):
         """
         world_dim: tuple (3,), dimension of world (probably in m)
 
@@ -22,12 +22,9 @@ class VoxelWorld:
 
         embed_size: int, dimension of the feature embeddings
 
-        cam_intrinsics: torch.FloatTensor (4,4): intrinsics matrix of camera being used 
-
         root_dir: the directory from which python is being called (PYTHON_PATH). None if running from current directory
         """
         self.device = device
-        self.cam_intrinsics = cam_intrinsics.to(self.device)
         t0 = time.time()
         self.predictor = WSImageEncoder(root_dir = root_dir)
         t1 = time.time()
@@ -65,7 +62,7 @@ class VoxelWorld:
         self.voxels = torch.zeros((gx+2,gy+2,gz+2,self.embed_size),device=self.device)
         self.grid_count = torch.zeros((gx+2,gy+2,gz+2),device=self.device) # for the running average
 
-        print(self.voxels.size())
+        print(f'New grid dim: {self.voxels.size()}')
 
     def compute_resolution(self) -> torch.Tensor:
         """
@@ -81,12 +78,17 @@ class VoxelWorld:
     def _aligned_update_world(self, rgb, K_rgb, T_rgb, d, K_d, T_d):
         """
         Inputs:
-        rgb: torch.Tensor, (B, 3, h, w)
-        K_rgb: (B, 4, 4), rgb camera intrinsics
-        T_rgb: (B, 4, 4), rgb camera extrinsics
-        d: torch.Tensor, (B, 1, h, w)
-        K_d: (B, 4, 4), depth camera intrinsics
-        T_d: (B, 4, 4), depth camera extrinsics
+            rgb: torch.Tensor, (B, 3, h, w)
+
+            K_rgb: (B, 4, 4), rgb camera intrinsics
+
+            T_rgb: (B, 4, 4), rgb camera extrinsics
+
+            d: torch.Tensor, (B, 1, h, w)
+
+            K_d: (B, 4, 4), depth camera intrinsics
+            
+            T_d: (B, 4, 4), depth camera extrinsics
         """
 
         B, h, w, _= rgb.size()
@@ -101,14 +103,14 @@ class VoxelWorld:
 
         self.voxels, self.grid_count = update_grids_aligned(valid_embeddings, voxel_locs, self.voxels, self.grid_count)
 
-    def _update_world(self, images, depths, cam_extrinsics):
+    def _update_world(self, images, depths, cam_extrinsics, cam_intrinsics):
         """
         Behavior:
             Run the model on image, and update the corresponding voxels
         """
         
         t1 = time.time()
-        world_locs = self.image_to_world(depths.to(self.device), cam_extrinsics.to(self.device))
+        world_locs = self.image_to_world(depths.to(self.device), cam_extrinsics.to(self.device), cam_intrinsics.to(self.device))
         voxel_locs = self.world_to_voxel(world_locs)
         t2 = time.time()
         print(f'Pixel projection time: {t2 - t1}')
@@ -137,11 +139,35 @@ class VoxelWorld:
         
         return selected_features
 
-    def batched_update_world(self, all_images, all_depths, all_extrinsics, max_batch_size = 10, update_func=None):
+    @overload
+    def batched_update_world(self, all_images, all_depths,all_rgb_extrinsics, all_depth_extrinsics,rgb_intrinsics, depth_intrinsics, max_batch_size = 10):
         """
-        Runs the model on all_images, in batches of size max_batch_size
+        Runs the model on all_images, when rgb and depth are not aligned
         
         max_batch_size avoids memory overflow when dealing with large sets of images
+
+        """
+        splits = list(range(0, len(all_images), max_batch_size))
+        splits.append(len(all_images)) # ensure the leftovers are still included
+
+        for i in range(len(splits) - 1): 
+            start = splits[i]
+            end = splits[i+1]
+
+            images = all_images[start:end]
+            depths = all_depths[start:end]
+            depth_extrinsics = all_depth_extrinsics[start:end]
+            rgb_extrinsics = all_rgb_extrinsics[start:end]
+            
+            self._aligned_update_world(images,rgb_intrinsics,rgb_extrinsics,  depths, depth_intrinsics, depth_extrinsics)
+
+    @overload
+    def batched_update_world(self, all_images, all_depths, all_extrinsics, intrinsics, max_batch_size = 10):
+        """
+        Runs the model on all_images when rgb and depth are aligned
+        
+        max_batch_size avoids memory overflow when dealing with large sets of images
+
         """
         splits = list(range(0, len(all_images), max_batch_size))
         splits.append(len(all_images)) # ensure the leftovers are still included
@@ -153,8 +179,8 @@ class VoxelWorld:
             images = all_images[start:end]
             depths = all_depths[start:end]
             extrinsics = all_extrinsics[start:end]
-
-            self._update_world(images, depths, extrinsics)
+            
+            self._update_world(images, depths, extrinsics, intrinsics)
 
 
 
@@ -187,12 +213,14 @@ class VoxelWorld:
         return voxel_locs
     
     
-    def image_to_world(self, depth, cam_extrinsics):
+    def image_to_world(self, depth, cam_extrinsics, cam_intrinsics):
         """
         Inputs:
             depth: torch.tensor, (batch, 1, height, width)
 
             cam_extrinsics: torch.tensor, (batch, 4,4), represents transformation matrix of camera in world coordinates T_CIW
+        
+            cam_intrinsics: torch.tensor, (4,4), represents intrinsics of the camera (must be constant)
         Returns:
             torch.tensor, (batch, height, width, 3): the world coordinates of each pixel in image, given camera intrinsics and extrinsics
             if these coordinates are greater than world boundaries, they are clipped to the boundaries.
@@ -203,7 +231,7 @@ class VoxelWorld:
 
         pixels = get_all_pixels(height, width)
 
-        px_w = unproject(self.cam_intrinsics, cam_extrinsics, pixels, depth.squeeze(1))
+        px_w = unproject(cam_intrinsics, cam_extrinsics, pixels, depth.squeeze(1))
         return px_w.nan_to_num().permute(0,2,3,1)
     
     def get_voxel_classes(self, classes: Union[List[str], Dict[str, List[str]]], min_points_in_voxel=0):
@@ -292,7 +320,7 @@ def batch_test():
     t1 = time.time()
     # below are params for the forest path test
     #world = VoxelWorld(world_dim = (60,80,20), grid_dim = (60,70, 30), voxel_origin=(-28, 0,10), embed_size= 768, cam_intrinsics=K)
-    world = VoxelWorld(world_dim = (14,30,4), grid_dim = (42,60, 12), voxel_origin=(0, 0,2), embed_size= 768, cam_intrinsics=K)
+    world = VoxelWorld(world_dim = (14,30,4), grid_dim = (42,60, 12), voxel_origin=(0, 0,2), embed_size= 768)
 
     t2 = time.time()
     print(f'World init time: {t2 - t1}')
@@ -309,7 +337,7 @@ def batch_test():
         end = 1
     
     assert end <= len(image_tensor)
-    world.batched_update_world(image_tensor[start:end], depths[start:end], cam_locs[start:end])
+    world.batched_update_world(image_tensor[start:end], depths[start:end], cam_locs[start:end], K)
 
     voxel_classes = world.get_voxel_classes(prompts)
     visualize_voxel_classes(voxel_classes, [c for c in prompts.keys()], save_dir=None)

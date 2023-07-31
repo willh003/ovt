@@ -47,6 +47,7 @@ class VoxSegClient:
         full_msg.depth_image = depth_msg
         full_msg.cam_extrinsics = np.reshape(extrinsics, (16,)).tolist()
 
+
         
         #pub = rospy.Publisher(IMAGE_TOPIC, DepthImageInfo, queue_size=10)
         self.image_pub.publish(full_msg)
@@ -102,8 +103,6 @@ class VoxSegClient:
         try:
             compute_data_service = rospy.ServiceProxy(VOXEL_REQUEST_SERVICE, VoxelComputation)
             voxel_response = compute_data_service(min_pts_in_voxel)
-
-
 
             voxels, world_dim= voxels_from_srv(voxel_response)
             return voxels, world_dim

@@ -12,9 +12,10 @@ conda activate voxseg
 ```
 - follow the [ovseg installation instructions](https://github.com/facebookresearch/ov-seg/blob/main/INSTALL.md) to install necessary dependencies for ovseg in the voxseg environment
 - Download the largest ovseg model, [swinbase_vitL_14](https://github.com/facebookresearch/ov-seg/blob/main/GETTING_STARTED.md), and put it in src/modules/ovseg/models
-- Install rospkg
+- Install dependencies
 ```bash
 pip install rospkg
+pip install overloading
 ```
 
 - Build and source the workspace. To do so, run the following, from the workspace root. Note that the workspace root is the root of this repo, unless you installed voxseg to your own separate catkin workspace:
