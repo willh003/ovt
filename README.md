@@ -16,6 +16,11 @@ conda activate voxseg
 ```bash
 pip install rospkg
 ```
+- Install liegroups [git@github.com:utiasSTARS/liegroups.git], we have found it is necessary to build it from source.
+- enter the liegroups directory (where setup.py is) and call 
+```bash
+pip install .
+```
 
 - Build and source the workspace. To do so, run the following, from the workspace root. Note that the workspace root is the root of this repo, unless you installed voxseg to your own separate catkin workspace:
 ```bash
