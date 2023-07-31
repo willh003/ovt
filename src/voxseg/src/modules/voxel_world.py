@@ -79,6 +79,15 @@ class VoxelWorld:
         self.grid_count = torch.zeros_like(self.grid_count)
     
     def _aligned_update_world(self, rgb, K_rgb, T_rgb, d, K_d, T_d):
+        """
+        Inputs:
+        rgb: torch.Tensor, (B, 3, h, w)
+        K_rgb: (B, 4, 4), rgb camera intrinsics
+        T_rgb: (B, 4, 4), rgb camera extrinsics
+        d: torch.Tensor, (B, 1, h, w)
+        K_d: (B, 4, 4), depth camera intrinsics
+        T_d: (B, 4, 4), depth camera extrinsics
+        """
 
         B, h, w, _= rgb.size()
         valid_world_locs, valid_rgb_pixels = align_depth_to_rgb(rgb, K_rgb, T_rgb, d, K_d, T_d)
