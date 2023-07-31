@@ -36,7 +36,7 @@ class VoxSegServer:
         rospy.init_node(SERVER_NODE, anonymous=True)
         rospy.Subscriber(IMAGE_TOPIC, DepthImageInfo, self._depth_image_callback)
         rospy.Subscriber(CLASS_TOPIC, Classes, self._class_name_callback)
-        rospy.Subscriber(WORLD_DIM_TOPIC, WorldInfo, self._world_dim_callback)
+        rospy.Subscriber(WORLD_DIM_TOPIC, WorldInfo, self._world_dim_callback, buff_size=100000) # SET BUFFER SIZE
         rospy.Subscriber(RESET_TOPIC, String, self._reset_callback)
         rospy.Service(VOXEL_REQUEST_SERVICE, VoxelComputation, self._handle_compute_request)
         self.voxel_pub = rospy.Publisher(VOXEL_TOPIC, VoxelGrid, queue_size=10)
@@ -55,6 +55,8 @@ class VoxSegServer:
         if tensors:
             image_tensor, depths, cam_locs = tensors
             self.world.batched_update_world(image_tensor, depths, cam_locs)
+        
+        torch.cuda.synchronize() # should block update world (but this is sketchy)
 
         #self.world.get_classes_by_groups(self.data.classes, self.data.groups, min_pts_in_voxel)
         if self.data.use_prompts:

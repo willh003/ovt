@@ -1,0 +1,14 @@
+[  0%] Built target geometry_msgs_generate_messages_py
+[  0%] Built target geometry_msgs_generate_messages_nodejs
+[  0%] Built target geometry_msgs_generate_messages_cpp
+[  0%] Built target geometry_msgs_generate_messages_eus
+[  0%] Built target geometry_msgs_generate_messages_lisp
+[  0%] Built target _elevation_map_msgs_generate_messages_check_deps_CheckSafety
+[  0%] Built target _elevation_map_msgs_generate_messages_check_deps_Initialize
+[  0%] Built target _elevation_map_msgs_generate_messages_check_deps_Statistics
+[ 16%] Built target elevation_map_msgs_generate_messages_nodejs
+[ 33%] Built target elevation_map_msgs_generate_messages_lisp
+[ 50%] Built target elevation_map_msgs_generate_messages_cpp
+[ 72%] Built target elevation_map_msgs_generate_messages_eus
+[100%] Built target elevation_map_msgs_generate_messages_py
+[100%] Built target elevation_map_msgs_generate_messages

@@ -78,6 +78,20 @@ class VoxelWorld:
         self.voxels = torch.zeros_like(self.voxels)
         self.grid_count = torch.zeros_like(self.grid_count)
     
+    def _aligned_update_world(self, rgb, K_rgb, T_rgb, d, K_d, T_d):
+
+        B, h, w, _= rgb.size()
+        valid_world_locs, valid_rgb_pixels = align_depth_to_rgb(rgb, K_rgb, T_rgb, d, K_d, T_d)
+        voxel_locs = self.world_to_voxel(valid_world_locs)
+
+        embeddings = self.get_image_embeddings(rgb)
+        embeddings_upsampled = interpolate_features(embeddings, h, w)
+        
+        valid_embeddings = embeddings_upsampled[valid_rgb_pixels]
+
+
+        self.voxels, self.grid_count = update_grids_aligned(valid_embeddings, voxel_locs, self.voxels, self.grid_count, h, w)
+
     def _update_world(self, images, depths, cam_extrinsics):
         """
         Behavior:
@@ -87,17 +101,23 @@ class VoxelWorld:
         t1 = time.time()
         world_locs = self.image_to_world(depths.to(self.device), cam_extrinsics.to(self.device))
         voxel_locs = self.world_to_voxel(world_locs)
-
         t2 = time.time()
         print(f'Pixel projection time: {t2 - t1}')
 
+        embeddings = self.get_image_embeddings(images)
+        t3 = time.time()
+        print(f'Image embedding time: {t3 - t2}')
+
+        self.voxels, self.grid_count = update_grids(embeddings, voxel_locs, self.voxels, self.grid_count)
+
+        t4 = time.time()
+        print(f'World update time: {t4 - t3}')
+
+    def get_image_embeddings(self, images):
         preds = self.predictor.batch_call(images)
         logits = preds['pred_logits'].to(self.device)
         seg = preds['pred_masks'].to(self.device)
         max_indices = torch.argmax(seg, dim=1) # NOTE: we are guessing that seg is the values/probabilities for each segment, and we can just take the max
-
-        t3 = time.time()
-        print(f'Inference time: {t3 - t2}')
 
         batch, _, height, width = seg.size()
         batch, _, feature_size = logits.size()
@@ -105,13 +125,10 @@ class VoxelWorld:
         selected_features = torch.zeros(batch, height, width, feature_size, device=self.device)
         for i in range(batch): # NOTE: not sure how to batch this, but there must be a way
             selected_features[i] = logits[i][max_indices[i]]
+        
+        return selected_features
 
-        self.voxels, self.grid_count = update_grids(selected_features, voxel_locs, self.voxels, self.grid_count)
-
-        t4 = time.time()
-        print(f'World update time: {t4 - t3}')
-
-    def batched_update_world(self, all_images, all_depths, all_extrinsics, max_batch_size = 10):
+    def batched_update_world(self, all_images, all_depths, all_extrinsics, max_batch_size = 10, update_func=None):
         """
         Runs the model on all_images, in batches of size max_batch_size
         
@@ -131,13 +148,14 @@ class VoxelWorld:
             self._update_world(images, depths, extrinsics)
 
 
+
     def world_to_voxel(self, world_locs : torch.Tensor,):
         """
         Input:
-            locs: torch.FloatTensor, shape (batch, height, width, 3): the world coordinates of each pixel in an input image
+            locs: torch.FloatTensor, shape (batch, *, 3): the world coordinates of each pixel in an input image
             
         Returns:
-            torch.IntTensor, shape (batch, height, width, 3): the voxel indices of each pixel
+            torch.IntTensor, shape (batch, *, 3): the voxel indices of each pixel
 
         Math:
             p           \in [-W/2, W/2)

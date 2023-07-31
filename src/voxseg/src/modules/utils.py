@@ -1,5 +1,6 @@
 import torch
 import torch.nn.functional as F
+
 import os
 from PIL import Image
 from detectron2.data.detection_utils import read_image
@@ -67,7 +68,33 @@ def load_images(directory):
 
     return images, depths, cam_locs
 
+def update_grids_aligned(feature_map, voxels, feature_grid, grid_count):
+    """
+    Inputs:
+        feature_map: (batch, N, feature size), representing features to insert into voxels
+        
+        voxels: (batch, N, 3), representing voxel indices
+        
+        feature_grid: (self.grid_dim, feature size)
 
+        grid_count: (self.grid_dim)
+
+    Returns:
+        feature_grid, grid_count after updating the selected voxels with the new features
+    """
+
+    B, N, _ = feature_map.size()
+
+    # for each batch
+    for i in range(B):
+        xv = voxels[i, :, 0].long()
+        yv = voxels[i, :, 1].long()
+        zv = voxels[i, :, 2].long() 
+
+        feature_grid[xv, yv, zv] += feature_map[i]
+        grid_count[xv, yv, zv] += torch.ones(N).cuda()
+
+    return feature_grid, grid_count
 
 def update_grids(feature_map, voxels, feature_grid, grid_count):
     """
@@ -168,8 +195,52 @@ def expand_to_batch_size(tensor, batches):
 
     return torch.repeat_interleave(tensor[None], batches, dim=0) 
 
+def align_depth_to_rgb(rgb, K_rgb, T_rgb, d, K_d, T_d):
+    """
+    Inputs:
+        rgb: torch.Tensor, (B, 3, h, w)
+        K_rgb: (B, 4, 4), rgb camera intrinsics
+        T_rgb: (B, 4, 4), rgb camera extrinsics
+        d: torch.Tensor, (B, 1, h, w)
+        K_d: (B, 4, 4), depth camera intrinsics
+        T_d: (B, 4, 4), depth camera extrinsics
+    Returns:
+        Two tensors, shape (B, M, 3) and (B, M, 2). The first tensor contains world coords of the depths,
+        and the second contains the pixel coordinates in rgb image space for those depths.
+    """
+    h_d, w_d = d.size()
+    h_rgb, w_rgb, _ = rgb.size()
+    pixels_d = get_all_pixels(h_d, w_d)
+    d_in_wld = unproject(K_d, T_d, pixels_d, d)
 
-def unproject(intrinsics, extrinsics, pixels, depth, max_depth = 1000):
+    d_in_rgb = project(K_rgb, T_rgb, d_in_wld)
+    boundary_mask = (d_in_rgb[:,:,0] < h_rgb) & (d_in_rgb[:,:,0] > 0) & (d_in_rgb[:,:,1] < w_rgb) & (d_in_rgb[:,:,1] > 0)
+    
+    d_px_in_rgb = d_in_rgb[boundary_mask].floor().long()
+    d_in_wld_clean = d_in_wld[boundary_mask].nan_to_num().permute(0,2,3,1)
+
+    return d_in_wld_clean, d_px_in_rgb
+    
+        
+
+def project(intrinsics, extrinsics, points):
+    """
+    Inputs:
+        intrinsics: Bx4x4
+        extrinsics: Bx4x4
+        points: Bxnx4
+    Returns:
+        torch.LongTensor, Bxnx2, coordinates in image space
+    """
+    image_pts= (intrinsics @ torch.inverse(extrinsics) @ points)
+
+    image_pts_normalized = image_pts / image_pts[:, 2, :] # divide by homogenous
+    px= torch.floor(image_pts_normalized).long()
+    px = px[:, :2, :].permute(0, 2, 1)
+
+    return px
+
+def unproject(intrinsics, extrinsics, pixels, depth):
     Kinv = torch.inverse(intrinsics)
     # get pixel coordinates in the camera plane
     cam_pts = (Kinv @ pixels.T).T

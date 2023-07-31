@@ -1,0 +1,26 @@
+[35m[1mScanning dependencies of target elevation_mapping_ros[0m
+[ 40%] [32mBuilding CXX object CMakeFiles/elevation_mapping_ros.dir/src/elevation_mapping_ros.cpp.o[0m
+[ 40%] [32mBuilding CXX object CMakeFiles/elevation_mapping_ros.dir/src/elevation_mapping_wrapper.cpp.o[0m
+In file included from [01m[K/home/pcgta/Documents/eth/voxseg/src/elevation_mapping_cupy/elevation_mapping_cupy/src/elevation_mapping_wrapper.cpp:6[m[K:
+[01m[K/home/pcgta/Documents/eth/voxseg/src/elevation_mapping_cupy/elevation_mapping_cupy/include/elevation_mapping_cupy/elevation_mapping_wrapper.hpp:38:7:[m[K [01;35m[Kwarning: [m[K‘[01m[Kelevation_mapping_cupy::ElevationMappingWrapper[m[K’ declared with greater visibility than the type of its field ‘[01m[Kelevation_mapping_cupy::ElevationMappingWrapper::map_[m[K’ [[01;35m[K-Wattributes[m[K]
+   38 | class [01;35m[KElevationMappingWrapper[m[K {
+      |       [01;35m[K^~~~~~~~~~~~~~~~~~~~~~~[m[K
+[01m[K/home/pcgta/Documents/eth/voxseg/src/elevation_mapping_cupy/elevation_mapping_cupy/include/elevation_mapping_cupy/elevation_mapping_wrapper.hpp:38:7:[m[K [01;35m[Kwarning: [m[K‘[01m[Kelevation_mapping_cupy::ElevationMappingWrapper[m[K’ declared with greater visibility than the type of its field ‘[01m[Kelevation_mapping_cupy::ElevationMappingWrapper::param_[m[K’ [[01;35m[K-Wattributes[m[K]
+In file included from [01m[K/home/pcgta/Documents/eth/voxseg/src/elevation_mapping_cupy/elevation_mapping_cupy/include/elevation_mapping_cupy/elevation_mapping_ros.hpp:42[m[K,
+                 from [01m[K/home/pcgta/Documents/eth/voxseg/src/elevation_mapping_cupy/elevation_mapping_cupy/src/elevation_mapping_ros.cpp:6[m[K:
+[01m[K/home/pcgta/Documents/eth/voxseg/src/elevation_mapping_cupy/elevation_mapping_cupy/include/elevation_mapping_cupy/elevation_mapping_wrapper.hpp:38:7:[m[K [01;35m[Kwarning: [m[K‘[01m[Kelevation_mapping_cupy::ElevationMappingWrapper[m[K’ declared with greater visibility than the type of its field ‘[01m[Kelevation_mapping_cupy::ElevationMappingWrapper::map_[m[K’ [[01;35m[K-Wattributes[m[K]
+   38 | class [01;35m[KElevationMappingWrapper[m[K {
+      |       [01;35m[K^~~~~~~~~~~~~~~~~~~~~~~[m[K
+[01m[K/home/pcgta/Documents/eth/voxseg/src/elevation_mapping_cupy/elevation_mapping_cupy/include/elevation_mapping_cupy/elevation_mapping_wrapper.hpp:38:7:[m[K [01;35m[Kwarning: [m[K‘[01m[Kelevation_mapping_cupy::ElevationMappingWrapper[m[K’ declared with greater visibility than the type of its field ‘[01m[Kelevation_mapping_cupy::ElevationMappingWrapper::param_[m[K’ [[01;35m[K-Wattributes[m[K]
+[ 60%] [32m[1mLinking CXX shared library /home/pcgta/Documents/eth/voxseg/devel/.private/elevation_mapping_cupy/lib/libelevation_mapping_ros.so[0m
+[ 60%] Built target elevation_mapping_ros
+[35m[1mScanning dependencies of target elevation_mapping_node[0m
+[ 80%] [32mBuilding CXX object CMakeFiles/elevation_mapping_node.dir/src/elevation_mapping_node.cpp.o[0m
+In file included from [01m[K/home/pcgta/Documents/eth/voxseg/src/elevation_mapping_cupy/elevation_mapping_cupy/include/elevation_mapping_cupy/elevation_mapping_ros.hpp:42[m[K,
+                 from [01m[K/home/pcgta/Documents/eth/voxseg/src/elevation_mapping_cupy/elevation_mapping_cupy/src/elevation_mapping_node.cpp:12[m[K:
+[01m[K/home/pcgta/Documents/eth/voxseg/src/elevation_mapping_cupy/elevation_mapping_cupy/include/elevation_mapping_cupy/elevation_mapping_wrapper.hpp:38:7:[m[K [01;35m[Kwarning: [m[K‘[01m[Kelevation_mapping_cupy::ElevationMappingWrapper[m[K’ declared with greater visibility than the type of its field ‘[01m[Kelevation_mapping_cupy::ElevationMappingWrapper::map_[m[K’ [[01;35m[K-Wattributes[m[K]
+   38 | class [01;35m[KElevationMappingWrapper[m[K {
+      |       [01;35m[K^~~~~~~~~~~~~~~~~~~~~~~[m[K
+[01m[K/home/pcgta/Documents/eth/voxseg/src/elevation_mapping_cupy/elevation_mapping_cupy/include/elevation_mapping_cupy/elevation_mapping_wrapper.hpp:38:7:[m[K [01;35m[Kwarning: [m[K‘[01m[Kelevation_mapping_cupy::ElevationMappingWrapper[m[K’ declared with greater visibility than the type of its field ‘[01m[Kelevation_mapping_cupy::ElevationMappingWrapper::param_[m[K’ [[01;35m[K-Wattributes[m[K]
+[100%] [32m[1mLinking CXX executable /home/pcgta/Documents/eth/voxseg/devel/.private/elevation_mapping_cupy/lib/elevation_mapping_cupy/elevation_mapping_node[0m
+[100%] Built target elevation_mapping_node
