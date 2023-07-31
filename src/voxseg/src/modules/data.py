@@ -3,23 +3,30 @@ from collections import deque
 import torch
 import numpy as np
 
+
 class BackendData:
     def __init__(self, device='cuda', batch_size=None):
         """
-        batch_size: size of data buffers. Warning: data may be lost if get_tensors is called with a higher period than batch_size
+        Stores image, depth, intrinsics, and class information. 
+        
+        NOTE: BackendData objects assume that the depth and rgb cameras have the same intrinsics and extrinsics.
+        For unaligned cameras, use UnalignedData.
+
+        Inputs:
+            batch_size: size of data buffers. Warning: data may be lost if get_tensors is called with a higher period than batch_size
         """
         self.all_images = []
         self.all_depths = []
-        self.all_extrinsics = []
+        self.rgb_extrinsics = []
 
         if batch_size:
             self.recent_image_data = deque(maxlen = batch_size)
             self.recent_depth_data = deque(maxlen = batch_size)
-            self.recent_extr_data = deque(maxlen = batch_size)
+            self.recent_rgb_extr = deque(maxlen = batch_size)
         else:
             self.recent_image_data = deque()
             self.recent_depth_data = deque()
-            self.recent_extr_data = deque()
+            self.recent_rgb_extr = deque()
 
         self.classes = []
         self.prompts = {}
@@ -29,22 +36,22 @@ class BackendData:
         self.image_data_start = 0
     
 
-    def add_depth_image(self, image, depths, extrinsics):
+    def add_depth_image(self, image, depths, rgb_extrinsics):
         """
         Inputs:
             image: np array of size (height, width, channels), representing a BGR image
             
             depths: np array of size (height, width)
             
-            extrinsics: np array of size (4,4)
+            rgb_extrinsics: np array of size (4,4)
         """
         self.all_images.append(image)
         self.all_depths.append(depths)
-        self.all_extrinsics.append(extrinsics)
+        self.rgb_extrinsics.append(rgb_extrinsics)
 
         self.recent_image_data.append(image)
         self.recent_depth_data.append(depths)
-        self.recent_extr_data.append(extrinsics)
+        self.recent_rgb_extr.append(rgb_extrinsics)
 
     def reset_buffers(self):
         """
@@ -54,7 +61,7 @@ class BackendData:
         """
         self.recent_image_data.clear()
         self.recent_depth_data.clear()
-        self.recent_extr_data.clear()
+        self.recent_rgb_extr.clear()
 
     def reset_all(self):
         """
@@ -62,7 +69,7 @@ class BackendData:
         """
         self.all_images = []
         self.all_depths = []
-        self.all_extrinsics = []
+        self.rgb_extrinsics = []
 
         self.reset_buffers()
 
@@ -83,7 +90,7 @@ class BackendData:
 
         depths_np = np.stack(self.all_depths)
         image_tensor = world.predictor.image_list_to_tensor(self.all_images)
-        extrinsics_np = np.stack(self.all_extrinsics)
+        extrinsics_np = np.stack(self.rgb_extrinsics)
 
         depth_tensor = torch.from_numpy(depths_np).to(self.device)
         depth_tensor = depth_tensor.unsqueeze(1)
@@ -111,7 +118,7 @@ class BackendData:
 
         depths_np = np.stack(self.recent_depth_data)
         image_tensor = world.predictor.image_list_to_tensor(list(self.recent_image_data))
-        extrinsics_np = np.stack(self.recent_extr_data)
+        extrinsics_np = np.stack(self.recent_rgb_extr)
 
         depth_tensor = torch.from_numpy(depths_np).to(self.device)
         depth_tensor = depth_tensor.unsqueeze(1)
@@ -120,3 +127,47 @@ class BackendData:
         self.reset_buffers() # clear recent data, so the same data isn't projected multiple times
 
         return image_tensor, depth_tensor, extr_tensor
+    
+class UnalignedData(BackendData):
+    def __init__(self, device='cuda', batch_size=None):
+        """
+        A BackendData object, which also stores depth camera extrinsics.
+        This is for the case when the depth and RGB cameras are not aligned
+        """
+        
+        
+        super().__init__(device=device, batch_size=batch_size)
+        
+        self.depth_extrinsics = []
+
+        if batch_size:
+            self.recent_depth_extr = deque(maxlen = batch_size)
+        else:
+            self.recent_depth_extr = deque()
+
+    def add_depth_image(self, image, depths, rgb_extr, depth_extr):
+        super().add_depth_image(image, depths, rgb_extr)
+        self.recent_depth_extr.append(depth_extr)
+        self.depth_extrinsics.append(depth_extr)
+        
+    def reset_buffers(self):
+        super().reset_buffers()
+        self.recent_depth_extr.clear()
+
+    def reset_all(self):
+        self.depth_extrinsics = []
+        self.reset_all()
+
+    def get_all_tensors(self, world):
+        depth_extr_np = np.stack(self.depth_extrinsics)
+        depth_extr_tensor = torch.from_numpy(depth_extr_np).to(self.device)
+        image_tensor, depth_tensor, rgb_extr_tensor = super().get_all_tensors(world)
+        self.reset_buffers()
+
+    def get_tensors(self, world):
+        image_tensor, depth_tensor, rgb_extr_tensor = super().get_all_tensors(world)
+
+        depth_extr_np = np.stack(self.depth_extrinsics)
+        depth_extr_tensor = torch.from_numpy(depth_extr_np).to(self.device)
+        
+        return image_tensor, depth_tensor, rgb_extr_tensor, depth_extr_tensor

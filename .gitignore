@@ -1,5 +1,7 @@
 build/*
 devel/*
+logs/*
+.catkin_tools/*
 
 .vscode
 src/voxseg/src/modules/ovseg/open_clip_training/openclip_data/*
