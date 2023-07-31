@@ -134,8 +134,6 @@ class UnalignedData(BackendData):
         A BackendData object, which also stores depth camera extrinsics.
         This is for the case when the depth and RGB cameras are not aligned
         """
-        
-        
         super().__init__(device=device, batch_size=batch_size)
         
         self.depth_extrinsics = []
@@ -162,10 +160,12 @@ class UnalignedData(BackendData):
         depth_extr_np = np.stack(self.depth_extrinsics)
         depth_extr_tensor = torch.from_numpy(depth_extr_np).to(self.device)
         image_tensor, depth_tensor, rgb_extr_tensor = super().get_all_tensors(world)
+
         self.reset_buffers()
+        return image_tensor, depth_tensor, rgb_extr_tensor, depth_extr_tensor
 
     def get_tensors(self, world):
-        image_tensor, depth_tensor, rgb_extr_tensor = super().get_all_tensors(world)
+        image_tensor, depth_tensor, rgb_extr_tensor = super().get_tensors(world)
 
         depth_extr_np = np.stack(self.depth_extrinsics)
         depth_extr_tensor = torch.from_numpy(depth_extr_np).to(self.device)
