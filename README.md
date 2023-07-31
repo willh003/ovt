@@ -16,7 +16,7 @@ conda activate voxseg
 ```bash
 pip install rospkg
 ```
-- Install [liegroups](git@github.com:utiasSTARS/liegroups.git), we have found it is necessary to build it from source.
+- Install [liegroups](https://github.com/utiasSTARS/liegroups), we have found it is necessary to build it from source.
 - enter the liegroups directory (where setup.py is) and call 
 ```bash
 pip install .
