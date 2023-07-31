@@ -99,7 +99,7 @@ class VoxelWorld:
         valid_embeddings = embeddings_upsampled[valid_rgb_pixels]
 
 
-        self.voxels, self.grid_count = update_grids_aligned(valid_embeddings, voxel_locs, self.voxels, self.grid_count, h, w)
+        self.voxels, self.grid_count = update_grids_aligned(valid_embeddings, voxel_locs, self.voxels, self.grid_count)
 
     def _update_world(self, images, depths, cam_extrinsics):
         """
