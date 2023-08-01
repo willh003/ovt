@@ -39,17 +39,11 @@ class VoxSegClient:
 
         """
         timestamp = rospy.Time.now()
-        image_msg = get_image_msg(image, timestamp)
-        depth_msg = get_depth_msg(depth_map, timestamp)
-
         full_msg = DepthImageInfo()
-        full_msg.rgb_image = image_msg
-        full_msg.depth_image = depth_msg
-        full_msg.cam_extrinsics = np.reshape(extrinsics, (16,)).tolist()
+        full_msg.rgb_image = get_image_msg(image, timestamp)
+        full_msg.depth_image = get_depth_msg(depth_map, timestamp)
+        full_msg.cam_extrinsics = get_cam_msg(extrinsics)
 
-
-        
-        #pub = rospy.Publisher(IMAGE_TOPIC, DepthImageInfo, queue_size=10)
         self.image_pub.publish(full_msg)
 
     def publish_class_names(self, names: Union[List[str], None]=['other'], 

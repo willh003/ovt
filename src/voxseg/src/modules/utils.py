@@ -6,6 +6,7 @@ from PIL import Image
 from detectron2.data.detection_utils import read_image
 from visualization_msgs.msg import Marker, MarkerArray
 from std_msgs.msg import ColorRGBA
+from sensor_msgs.msg import Image as RosImage
 from geometry_msgs.msg import Vector3, Point, Quaternion, Pose
 from voxseg.srv import VoxelComputationResponse
 #from costmap_2d.msg import VoxelGrid
@@ -22,24 +23,19 @@ from std_msgs.msg import String
 import json
 import rospy
 
-def get_cam_msg(self, extrinsics):
+def get_cam_msg(extrinsics):
     """
     extrinsics: a numpy array containing camera extrinsics, size (4,4)
     """
     return np.reshape(extrinsics, (16,)).tolist()
 
-def get_image_msg(image, timestamp) -> Image:
+def get_image_msg(image, timestamp) -> RosImage:
     """
     Inputs:
         image: a numpy array containing rgb image data, shape (h,w,c)
-
-        depth_map: a numpy array containing depth data, size (h,w)
-
-        extrinsics: a numpy array containing camera extrinsics, size (4,4)
-
     """
     h,w,c = image.shape
-    img_msg = Image()
+    img_msg = RosImage()
     img_msg.width = w
     img_msg.height = h
     img_msg.encoding = "rgb8"  # Set the encoding to match your image format
@@ -55,7 +51,7 @@ def get_depth_msg(depth_map, timestamp) -> Image:
     depth_map: a numpy array containing depth data, size (h,w)
     """
     h,w = depth_map.shape
-    depth_msg = Image()
+    depth_msg = RosImage()
     depth_msg.height = h
     depth_msg.width = w
     depth_msg.encoding = '32FC1'  # Assuming single-channel depth map

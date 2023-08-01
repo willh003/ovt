@@ -121,8 +121,8 @@ class ImageSaver:
             depth_extrinsics = (base_in_odom @ depth_in_base).flatten()
 
             ### make msg types            
-            rgb_msg = get_image_msg(rgb_img_np)
-            depth_msg = get_depth_msg(depth_img_np)
+            rgb_msg = get_image_msg(rgb_img_np, depth_image.header.stamp)
+            depth_msg = get_depth_msg(depth_img_np, depth_image.header.stamp)
             rgb_ext_msg = get_cam_msg(rgb_extrinsics)
             depth_ext_msg = get_cam_msg(depth_extrinsics)
 
