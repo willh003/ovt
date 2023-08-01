@@ -13,7 +13,9 @@ import torch
 
 from modules.data import BackendData, UnalignedData
 from modules.voxel_world import VoxelWorld
-from modules.config import *
+
+#from modules.config import *
+from modules.real_data_cfg import *
 from modules.utils import convert_dictionary_array_to_dict
 
 class VoxSegServer:
@@ -49,7 +51,7 @@ class VoxSegServer:
     
         print('Backend Has Been Initialized')
 
-        rospy.spin() # not sure if this will be needed here
+        rospy.spin()
 
     def _update_world(self):
         """
@@ -70,7 +72,7 @@ class VoxSegServer:
             self.world.batched_update_world(image_tensor, depth_tensor, rgb_extr_tensor, depth_extr_tensor, K_RGB, K_DEPTH)
         
         self.img_count = 0
-        torch.cuda.synchronize() # should block update world (but this is sketchy)
+        torch.cuda.synchronize() # wait for all world updates before doing inference
 
     def _handle_compute_request(self, req):
         

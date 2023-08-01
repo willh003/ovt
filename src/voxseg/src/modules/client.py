@@ -13,7 +13,7 @@ from typing import List, Dict, Union
 import json
 
 from modules.config import CLIENT_NODE, CLASS_TOPIC, IMAGE_TOPIC, VOXEL_TOPIC, VOXEL_REQUEST_SERVICE
-from modules.utils import voxels_from_srv, convert_dict_to_dictionary_array
+from modules.utils import *
 
 class VoxSegClient:
     def __init__(self):
@@ -39,8 +39,8 @@ class VoxSegClient:
 
         """
         timestamp = rospy.Time.now()
-        image_msg = self._get_image_msg(image, timestamp)
-        depth_msg = self._get_depth_msg(depth_map, timestamp)
+        image_msg = get_image_msg(image, timestamp)
+        depth_msg = get_depth_msg(depth_map, timestamp)
 
         full_msg = DepthImageInfo()
         full_msg.rgb_image = image_msg
@@ -111,43 +111,6 @@ class VoxSegClient:
             return None
 
 
-    def _get_image_msg(self, image, timestamp) -> Image:
-        """
-        Inputs:
-            image: a numpy array containing rgb image data, shape (h,w,c)
-
-            depth_map: a numpy array containing depth data, size (h,w)
-
-            extrinsics: a numpy array containing camera extrinsics, size (4,4)
-
-        """
-        h,w,c = image.shape
-        img_msg = Image()
-        img_msg.width = w
-        img_msg.height = h
-        img_msg.encoding = "rgb8"  # Set the encoding to match your image format
-        img_msg.data = image.tobytes()
-        img_msg.header.stamp = timestamp
-        img_msg.header.frame_id = 'img_frame'
-
-        return img_msg
-
-
-    def _get_depth_msg(self, depth_map, timestamp) -> Image:
-        """
-        depth_map: a numpy array containing depth data, size (h,w)
-        """
-        h,w = depth_map.shape
-        depth_msg = Image()
-        depth_msg.height = h
-        depth_msg.width = w
-        depth_msg.encoding = '32FC1'  # Assuming single-channel depth map
-        depth_msg.step = w * 4  # Size of each row in bytes
-        depth_msg.data = depth_map.astype(np.float32).tobytes()
-        depth_msg.header.stamp = timestamp
-        depth_msg.header.frame_id = 'depth_frame'
-
-        return depth_msg
 
 
     def _get_cam_msg(self, extrinsics, timestamp) -> TransformationMatrix:

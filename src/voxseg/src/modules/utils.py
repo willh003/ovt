@@ -23,6 +23,45 @@ import json
 import rospy
 
 
+
+def get_image_msg(image, timestamp) -> Image:
+    """
+    Inputs:
+        image: a numpy array containing rgb image data, shape (h,w,c)
+
+        depth_map: a numpy array containing depth data, size (h,w)
+
+        extrinsics: a numpy array containing camera extrinsics, size (4,4)
+
+    """
+    h,w,c = image.shape
+    img_msg = Image()
+    img_msg.width = w
+    img_msg.height = h
+    img_msg.encoding = "rgb8"  # Set the encoding to match your image format
+    img_msg.data = image.tobytes()
+    img_msg.header.stamp = timestamp
+    img_msg.header.frame_id = 'img_frame'
+
+    return img_msg
+
+
+def get_depth_msg(depth_map, timestamp) -> Image:
+    """
+    depth_map: a numpy array containing depth data, size (h,w)
+    """
+    h,w = depth_map.shape
+    depth_msg = Image()
+    depth_msg.height = h
+    depth_msg.width = w
+    depth_msg.encoding = '32FC1'  # Assuming single-channel depth map
+    depth_msg.step = w * 4  # Size of each row in bytes
+    depth_msg.data = depth_map.astype(np.float32).tobytes()
+    depth_msg.header.stamp = timestamp
+    depth_msg.header.frame_id = 'depth_frame'
+
+    return depth_msg
+
 def load_images(directory):
     """
     Returns: 
