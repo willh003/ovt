@@ -58,7 +58,7 @@ class BackendData:
         Fill the recent data buffers with all past data
         Requires: buffer_size < len(past data)
         """
-        for i in range(self.all_images):
+        for i in range(len(self.all_images)):
             self.recent_image_data.append(self.all_images[i]) 
             self.recent_depth_data.append(self.all_depths[i]) 
             self.recent_rgb_extr.append(self.rgb_extrinsics[i]) 
