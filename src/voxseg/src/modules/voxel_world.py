@@ -7,7 +7,6 @@ from typing import Union, List, Dict
 from modules.utils import *
 
 from modules.ovseg.open_vocab_seg.ws_ovseg_model import WSTextFeatureModel, WSImageEncoder
-from overloading import overload
 
 WINDOW_NAME = "OVSeg"
 
@@ -139,50 +138,34 @@ class VoxelWorld:
         
         return selected_features
 
-    @overload
-    def batched_update_world(self, all_images, all_depths,all_rgb_extrinsics, all_depth_extrinsics,rgb_intrinsics, depth_intrinsics, max_batch_size = 10):
-        """
-        Runs the model on all_images, when rgb and depth are not aligned
-        
-        max_batch_size avoids memory overflow when dealing with large sets of images
+    def batched_update_world(self, all_images, all_depths, all_rgb_extrinsics, rgb_intrinsics,
+                              all_depth_extrinsics=None, depth_intrinsics=None, max_batch_size=10):
+            """
+            If all_depth_extrinics and depth_intrinsics are None, then it is assumed that the cameras are aligned
+            Otherwise, this will attempt to align the cameras before projecting into the world
+            """
 
-        """
-        splits = list(range(0, len(all_images), max_batch_size))
-        splits.append(len(all_images)) # ensure the leftovers are still included
+            splits = list(range(0, len(all_images), max_batch_size))
+            splits.append(len(all_images)) # ensure the leftovers are still included
 
-        for i in range(len(splits) - 1): 
-            start = splits[i]
-            end = splits[i+1]
+            for i in range(len(splits) - 1): 
+                start = splits[i]
+                end = splits[i+1]
 
-            images = all_images[start:end]
-            depths = all_depths[start:end]
-            depth_extrinsics = all_depth_extrinsics[start:end]
-            rgb_extrinsics = all_rgb_extrinsics[start:end]
+                images = all_images[start:end]
+                depths = all_depths[start:end]
+                rgb_extrinsics = all_rgb_extrinsics[start:end]
+
+                if depth_intrinsics is not None and all_depth_extrinsics is not None:
+                    depth_extrinsics = all_depth_extrinsics[start:end]
+                    self._aligned_update_world(images, rgb_extrinsics, rgb_intrinsics, 
+                                            depths, depth_extrinsics, depth_intrinsics)
+                elif depth_intrinsics is not None or all_depth_extrinsics is not None:
+                    raise ValueError("Invalid combination of arguments.")
+                else:
+                    self._update_world(images, depths, rgb_extrinsics, rgb_intrinsics)
+                
             
-            self._aligned_update_world(images,rgb_intrinsics,rgb_extrinsics,  depths, depth_intrinsics, depth_extrinsics)
-
-    @overload
-    def batched_update_world(self, all_images, all_depths, all_extrinsics, intrinsics, max_batch_size = 10):
-        """
-        Runs the model on all_images when rgb and depth are aligned
-        
-        max_batch_size avoids memory overflow when dealing with large sets of images
-
-        """
-        splits = list(range(0, len(all_images), max_batch_size))
-        splits.append(len(all_images)) # ensure the leftovers are still included
-
-        for i in range(len(splits) - 1): 
-            start = splits[i]
-            end = splits[i+1]
-
-            images = all_images[start:end]
-            depths = all_depths[start:end]
-            extrinsics = all_extrinsics[start:end]
-            
-            self._update_world(images, depths, extrinsics, intrinsics)
-
-
 
     def world_to_voxel(self, world_locs : torch.Tensor,):
         """
@@ -227,7 +210,7 @@ class VoxelWorld:
         Requires:
             intrinsics are constant for all images in the batch
         """
-        batches, _, height, width = depth.size()
+        _, _, height, width = depth.size()
 
         pixels = get_all_pixels(height, width)
 

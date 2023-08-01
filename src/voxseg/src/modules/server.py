@@ -11,7 +11,7 @@ import numpy as np
 import json
 import torch
 
-from modules.data import BackendData
+from modules.data import BackendData, UnalignedData
 from modules.voxel_world import VoxelWorld
 from modules.config import *
 from modules.utils import convert_dictionary_array_to_dict
@@ -26,8 +26,14 @@ class VoxSegServer:
         BATCH_SIZE is the number of images to accumulate before projecting them into the world. 
         Set it to None to only perform projections on a compute_request
         """
+        self.cams_aligned = CAMS_ALIGNED
+
         self.world = VoxelWorld(**WORLD_CONFIG, root_dir=VOXSEG_ROOT_DIR) 
-        self.data = BackendData(device='cuda', batch_size=BATCH_SIZE)
+
+        if self.cams_aligned:
+            self.data = BackendData(device='cuda', batch_size=BATCH_SIZE)
+        else:
+            self.data = UnalignedData(device='cuda', batch_size=BATCH_SIZE)
 
         # keep track of number of images seen so far
         self.img_count = 0
@@ -45,25 +51,37 @@ class VoxSegServer:
 
         rospy.spin() # not sure if this will be needed here
 
-    def _handle_compute_request(self, req):
-        
-        # Get the last tensors (will be None if in batch mode and no tensors have 
-        # been added since the last time get_tensors was called)
-        min_pts_in_voxel = req.min_pts_in_voxel
+    def _update_world(self):
+        """
+        Updates the server's self.world object
+        - gets the most recent image and depth tensors 
+        - casts them into the world and updates the voxel representation
+        - handles cases where images and depths are not aligned
+        """
 
+        # tensors will be None if in batch mode and no tensors have 
+        # been added since the last time get_tensors was called
         tensors = self.data.get_tensors(world=self.world)
-        if tensors:
+        if tensors and self.cams_aligned:
             image_tensor, depths, cam_locs = tensors
             self.world.batched_update_world(image_tensor, depths, cam_locs, K_RGB)
+        elif tensors and not self.cams_aligned:
+            image_tensor, depth_tensor, rgb_extr_tensor, depth_extr_tensor = tensors
+            self.world.batched_update_world(image_tensor, depth_tensor, rgb_extr_tensor, depth_extr_tensor, K_RGB, K_DEPTH)
         
+        self.img_count = 0
         torch.cuda.synchronize() # should block update world (but this is sketchy)
 
-        #self.world.get_classes_by_groups(self.data.classes, self.data.groups, min_pts_in_voxel)
+    def _handle_compute_request(self, req):
+        
+        # Update from the most recent tensors 
+        self._update_world()
+
+        min_pts_in_voxel = req.min_pts_in_voxel
         if self.data.use_prompts:
             voxel_classes = self.world.get_classes_by_groups(self.data.prompts, self.data.groups, min_points_in_voxel=min_pts_in_voxel)
         else:
             voxel_classes = self.world.get_classes_by_groups(self.data.classes, self.data.groups, min_points_in_voxel=min_pts_in_voxel)
-
 
         x,y,z = voxel_classes.size()
 
@@ -91,8 +109,9 @@ class VoxSegServer:
                         size_z=voxel_response.size_z
                         )
         self.voxel_pub.publish(voxel_msg)
+
+        print('Computation Complete')
         
-                
         return voxel_response
 
     def _world_dim_callback(self, msg):
@@ -106,7 +125,9 @@ class VoxSegServer:
 
         image_msg = msg.rgb_image
         depths_msg = msg.depth_image
-        extrinsics_msg = msg.cam_extrinsics
+        rgb_extrinsics_msg = msg.cam_extrinsics
+        rgb_extrinsics = np.array(rgb_extrinsics_msg).reshape(4,4)
+
 
         bridge = CvBridge()
         img = bridge.imgmsg_to_cv2(image_msg, desired_encoding="passthrough")
@@ -117,24 +138,21 @@ class VoxSegServer:
         depths = bridge.imgmsg_to_cv2(depths_msg, desired_encoding="passthrough")
         np_depths = np.array(depths)
 
-        extrinsics_1d = np.array(extrinsics_msg)
-        extrinsics_2d = extrinsics_1d.reshape(4,4)
+        if self.cams_aligned:
+            self.data.add_depth_image(np_image, np_depths, rgb_extrinsics)
+        else:
+            depth_extrinsics_msg = msg.depth_extrinsics
+            depth_extrinsics = np.array(depth_extrinsics_msg).reshape(4,4)
+            self.data.add_depth_image(np_image, np_depths, rgb_extrinsics, depth_extrinsics)
 
-        self.data.add_depth_image(np_image, np_depths, extrinsics_2d)
         print(f'Depth Image {len(self.data.all_images)} Received')
 
         # Update the world as images come in, if batch size is defined
         if self.batch_size:
             self.img_count += 1
             if self.img_count == self.batch_size:
-
-                tensors = self.data.get_tensors(world=self.world)
-                if tensors is not None:
-                    image_tensor, depths, cam_locs = tensors
-                else:
-                    raise Exception('No images currently exist in the buffer')
-                self.world.batched_update_world(image_tensor, depths, cam_locs, K_RGB)
-                self.img_count = 0
+                self._update_world()
+                
 
     def _reset_callback(self, msg):
         self.world.reset_world()
@@ -171,7 +189,3 @@ class VoxSegServer:
         self.data.add_class_info(classes, prompts, groups, use_prompts)
 
         print(f'Classes recieved: {classes}')
-    
-class UnalignedVoxSegServer(VoxSegServer):
-    def __init__(self):
-        pass

@@ -100,7 +100,7 @@ class BackendData:
 
         return image_tensor, depth_tensor, extr_tensor
 
-    def get_tensors(self, world) -> Union[Tuple, None]:
+    def get_tensors(self, world):
         """
         Inputs:
             world: the world for this data (must contain a predictor)

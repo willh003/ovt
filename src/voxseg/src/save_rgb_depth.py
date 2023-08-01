@@ -1,9 +1,11 @@
 #!/usr/bin/env python
 import rospy
 from rospy import Publisher
+from rospy import Subscriber as RospySubscriber
 from sensor_msgs.msg import CompressedImage, Image
 from tf2_msgs.msg import TFMessage
-from message_filters import ApproximateTimeSynchronizer, Subscriber
+from message_filters import ApproximateTimeSynchronizer
+from message_filters import Subscriber as SyncedSubscriber
 import cv2
 from cv_bridge import CvBridge, CvBridgeError
 import numpy as np
@@ -46,19 +48,23 @@ class ImageSaver:
         self.bridge = CvBridge()
         self.data = UnalignedData(device='cuda', batch_size=BATCH_SIZE)
         
-
-        # Create subscribers for the image topics
-        self.rgb_sub = Subscriber("/wide_angle_camera_front/image_color_rect/compressed", CompressedImage)
-        self.depth_sub = Subscriber("/depth_camera_front_upper/depth/image_rect_raw", Image)
+        rospy.init_node('image_saver_node')
 
         # Cannot just use tf_sub as it has no header...
         # instead we need to add an intermediate sub/pub trio. 
-        self.tf_main_sub = Subscriber("/tf", TFMessage, callback=self.publish_tf_list_to_specific_tfs)
+        self.tf_main_sub = RospySubscriber("/tf", TFMessage, callback=self.publish_tf_list_to_specific_tfs)
+
+        
+
+        # Create subscribers for the image topics
+        self.rgb_sub = SyncedSubscriber("/wide_angle_camera_front/image_color_rect/compressed", CompressedImage)
+        self.depth_sub = SyncedSubscriber("/depth_camera_front_upper/depth/image_rect_raw", Image)
+
 
         # Create subscribers for the tf topics
-        self.tf_odom_sub = Subscriber("/tf_odom", TransformStamped)
-        self.tf_rgb_sub = Subscriber("/tf_rgb", TransformStamped)
-        self.tf_depth_sub = Subscriber("/tf_depth", TransformStamped)
+        self.tf_odom_sub = SyncedSubscriber("/tf_odom", TransformStamped)
+        self.tf_rgb_sub = SyncedSubscriber("/tf_rgb", TransformStamped)
+        self.tf_depth_sub = SyncedSubscriber("/tf_depth", TransformStamped)
 
         # Publishers for the individual tf topics
         self.tf_odom_pub = Publisher("/tf_odom", TransformStamped, queue_size=100) # NOTE: Arbitrary number
@@ -70,10 +76,13 @@ class ImageSaver:
                                            self.tf_odom_sub, self.tf_rgb_sub, self.tf_depth_sub], 
                                            slop=0.1, queue_size=100) # NOTE: 0.1 default, 100 Arbitrary number
         ats.registerCallback(self.callback)
+        print("node initialized")
+        rospy.spin()
     
-    def publish_tf_list_to_specific_tfs(self, tf_msg : TFMessage):
+    def publish_tf_list_to_specific_tfs(self, tf_msg):
         # get camera tfs
         tfs_list : List[TransformStamped] = tf_msg.transforms
+        print('start')
 
         # find transforms of interest        
         rgb_frame_id = "wide_angle_camera_front_camera_parent" #rgb_img
@@ -127,7 +136,6 @@ class ImageSaver:
 
 
 if __name__ == '__main__':
-    rospy.init_node('image_saver_node')
     rospy.loginfo("Set up (rgb,depth) image saver node")
     ImageSaver()
     rospy.spin()

@@ -1,9 +1,4 @@
 int32 min_pts_in_voxel
-float64[3] world_dim
-int32[3] grid_dim
-string[] classes
-bool update_world
-bool update_classes
 ---
 std_msgs/Header header
 uint32[] data
