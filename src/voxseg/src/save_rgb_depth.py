@@ -10,8 +10,9 @@ import cv2
 from cv_bridge import CvBridge, CvBridgeError
 import numpy as np
 from modules.data import UnalignedData
-from modules.config import BATCH_SIZE
+from modules.config import BATCH_SIZE, IMAGE_TOPIC
 from geometry_msgs.msg import TransformStamped 
+from voxseg.msg import DepthImageInfo
 import yaml
 
 # Method cutout from Wild Visual Navigation--------------------#
@@ -46,20 +47,18 @@ def pose_of_tf(tf : TransformStamped) -> np.ndarray:
 class ImageSaver:
     def __init__(self):
         self.bridge = CvBridge()
-        self.data = UnalignedData(device='cuda', batch_size=BATCH_SIZE)
         
         rospy.init_node('image_saver_node')
+
+        # TODO: Pull topic names from some config
 
         # Cannot just use tf_sub as it has no header...
         # instead we need to add an intermediate sub/pub trio. 
         self.tf_main_sub = RospySubscriber("/tf", TFMessage, callback=self.publish_tf_list_to_specific_tfs)
 
-        
-
         # Create subscribers for the image topics
         self.rgb_sub = SyncedSubscriber("/wide_angle_camera_front/image_color_rect/compressed", CompressedImage)
         self.depth_sub = SyncedSubscriber("/depth_camera_front_upper/depth/image_rect_raw", Image)
-
 
         # Create subscribers for the tf topics
         self.tf_odom_sub = SyncedSubscriber("/tf_odom", TransformStamped)
@@ -67,29 +66,29 @@ class ImageSaver:
         self.tf_depth_sub = SyncedSubscriber("/tf_depth", TransformStamped)
 
         # Publishers for the individual tf topics
-        self.tf_odom_pub = Publisher("/tf_odom", TransformStamped, queue_size=100) # NOTE: Arbitrary number
-        self.tf_rgb_pub = Publisher("/tf_rgb", TransformStamped, queue_size=100)
-        self.tf_depth_pub = Publisher("/tf_depth", TransformStamped, queue_size=100)
+        self.tf_odom_pub = Publisher("/tf_odom", TransformStamped, queue_size=10) # NOTE: Arbitrary number
+        self.tf_rgb_pub = Publisher("/tf_rgb", TransformStamped, queue_size=10)
+        self.tf_depth_pub = Publisher("/tf_depth", TransformStamped, queue_size=10)
+
+        self.data_pub = Publisher(IMAGE_TOPIC, DepthImageInfo, queue_size=10)
 
         # Synchronize the topics
         ats = ApproximateTimeSynchronizer([self.rgb_sub, self.depth_sub, 
                                            self.tf_odom_sub, self.tf_rgb_sub, self.tf_depth_sub], 
-                                           slop=0.1, queue_size=100) # NOTE: 0.1 default, 100 Arbitrary number
+                                           slop=0.1, queue_size=10) # NOTE: 0.1 default, 10 Arbitrary number
         ats.registerCallback(self.callback)
-        print("node initialized")
         rospy.spin()
     
     def publish_tf_list_to_specific_tfs(self, tf_msg):
         # get camera tfs
+        print("Publishing tfs...")
         tfs_list : List[TransformStamped] = tf_msg.transforms
-        print('start')
 
         # find transforms of interest        
         rgb_frame_id = "wide_angle_camera_front_camera_parent" #rgb_img
         depth_frame_id = "depth_camera_front_upper_depth_optical_frame" #depth_img
         base_frame_id = "base"
 
-        print("PUBSUB")
         for tf in tfs_list:
             if tf.child_frame_id == base_frame_id:
                 self.tf_odom_pub.publish(tf)
@@ -100,7 +99,6 @@ class ImageSaver:
 
     def callback(self, rgb_image:CompressedImage, depth_image:Image, 
                  tf_odom:TransformStamped, tf_rgb:TransformStamped, tf_depth:TransformStamped):
-        print("CALLBACK")
         try:
             # Convert RGB compressed image to OpenCV format, then to numpy
             rgb_img = self.bridge.compressed_imgmsg_to_cv2(rgb_image, desired_encoding="bgr8")
@@ -117,21 +115,18 @@ class ImageSaver:
             rgb_in_base = transformation_matrix_of_pose(pose_of_tf(tf_rgb))
             depth_in_base = transformation_matrix_of_pose(pose_of_tf(tf_depth))
 
-            ### combine to get global transforms
+            # combine to get global transforms
             rgb_extrinsics = base_in_odom @ rgb_in_base
             depth_extrinsics = base_in_odom @ depth_in_base
 
-            ### pass to Data object
-            self.data.add_depth_image(rgb_img_np, depth_img_np, rgb_extrinsics, depth_extrinsics)
-            print(f'Depth Image {len(self.data.all_images)} Received')
+            # pass to Data object
+            self.data_pub.publish(rgb_img_np, depth_img_np, rgb_extrinsics, depth_extrinsics)
         
             rospy.loginfo("Saved synchronized images with timestamp: %s", rgb_image.header.stamp)
             
         except CvBridgeError as e:
-            print("CVE")
             rospy.logerr(e)
         except ValueError as e:
-            print("VE")
             rospy.logerr(e)
 
 
