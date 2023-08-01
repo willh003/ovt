@@ -13,6 +13,7 @@ from modules.data import UnalignedData
 from modules.config import BATCH_SIZE, IMAGE_TOPIC
 from geometry_msgs.msg import TransformStamped 
 from voxseg.msg import DepthImageInfo
+from modules.utils import get_depth_msg, get_image_msg, get_cam_msg
 import yaml
 
 # Method cutout from Wild Visual Navigation--------------------#
@@ -99,27 +100,34 @@ class ImageSaver:
     def callback(self, rgb_image:CompressedImage, depth_image:Image, 
                  tf_odom:TransformStamped, tf_rgb:TransformStamped, tf_depth:TransformStamped):
         try:
-            # Convert RGB compressed image to OpenCV format, then to numpy
+            ### Convert RGB compressed image to OpenCV format, then to numpy
             rgb_img = self.bridge.compressed_imgmsg_to_cv2(rgb_image, desired_encoding="bgr8")
             #cv2.imwrite(f'rgb_{rgb_msg.header.stamp}.jpg', rgb_img)
             rgb_img_np = np.array(rgb_img)
-            
-            # Convert depth image to OpenCV format, then to numpy
+
+            ### Convert depth image to OpenCV format, then to numpy
             depth_img = self.bridge.imgmsg_to_cv2(depth_image, desired_encoding="passthrough")
             #cv2.imwrite(f'depth_{depth_msg.header.stamp}.png', depth_img)
             depth_img_np = np.array(depth_img)
             
-            # Get transformations as matrices
+            
+            ### Get transformations as matrices
             base_in_odom = transformation_matrix_of_pose(pose_of_tf(tf_odom))
             rgb_in_base = transformation_matrix_of_pose(pose_of_tf(tf_rgb))
             depth_in_base = transformation_matrix_of_pose(pose_of_tf(tf_depth))
 
-            # combine to get global transforms
+            ### combine to get global transforms, then to msg
             rgb_extrinsics = (base_in_odom @ rgb_in_base).flatten()
             depth_extrinsics = (base_in_odom @ depth_in_base).flatten()
 
-            # pass to Data object
-            self.data_pub.publish(DepthImageInfo(rgb_image=rgb_img_np, depth_image=depth_img_np, cam_extrinsics=rgb_extrinsics, depth_extrinsics=depth_extrinsics))
+            ### make msg types            
+            rgb_msg = get_image_msg(rgb_img_np)
+            depth_msg = get_depth_msg(depth_img_np)
+            rgb_ext_msg = get_cam_msg(rgb_extrinsics)
+            depth_ext_msg = get_cam_msg(depth_extrinsics)
+
+            ### pass to Data object
+            self.data_pub.publish(DepthImageInfo(rgb_image=rgb_msg, depth_image=depth_msg, cam_extrinsics=rgb_ext_msg, depth_extrinsics=depth_ext_msg))
         
             rospy.loginfo("Saved synchronized images with timestamp: %s", rgb_image.header.stamp)
             
