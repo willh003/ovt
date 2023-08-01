@@ -119,6 +119,7 @@ class VoxSegServer:
     def _world_dim_callback(self, msg):
         print('Updating World Dim')
         self.world.update_dims(msg.world_dim, msg.grid_dim)
+        self.data.fill_buffers()
 
 
 
