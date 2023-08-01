@@ -81,7 +81,6 @@ class ImageSaver:
     
     def publish_tf_list_to_specific_tfs(self, tf_msg):
         # get camera tfs
-        print("Publishing tfs...")
         tfs_list : List[TransformStamped] = tf_msg.transforms
 
         # find transforms of interest        
@@ -92,9 +91,9 @@ class ImageSaver:
         for tf in tfs_list:
             if tf.child_frame_id == base_frame_id:
                 self.tf_odom_pub.publish(tf)
-            elif tf.header.frame_id == rgb_frame_id:
+            elif tf.child_frame_id == rgb_frame_id:
                 self.tf_rgb_pub.publish(tf)
-            elif tf.header.frame_id == depth_frame_id:
+            elif tf.child_frame_id == depth_frame_id:
                 self.tf_depth_pub.publish(tf)
 
     def callback(self, rgb_image:CompressedImage, depth_image:Image, 
@@ -116,11 +115,11 @@ class ImageSaver:
             depth_in_base = transformation_matrix_of_pose(pose_of_tf(tf_depth))
 
             # combine to get global transforms
-            rgb_extrinsics = base_in_odom @ rgb_in_base
-            depth_extrinsics = base_in_odom @ depth_in_base
+            rgb_extrinsics = (base_in_odom @ rgb_in_base).flatten()
+            depth_extrinsics = (base_in_odom @ depth_in_base).flatten()
 
             # pass to Data object
-            self.data_pub.publish(rgb_img_np, depth_img_np, rgb_extrinsics, depth_extrinsics)
+            self.data_pub.publish(DepthImageInfo(rgb_image=rgb_img_np, depth_image=depth_img_np, cam_extrinsics=rgb_extrinsics, depth_extrinsics=depth_extrinsics))
         
             rospy.loginfo("Saved synchronized images with timestamp: %s", rgb_image.header.stamp)
             
