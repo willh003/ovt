@@ -76,7 +76,6 @@ class VoxSegServer:
         torch.cuda.synchronize() # wait for all world updates before doing inference
 
     def _handle_compute_request(self, req):
-        
         # Update from the most recent tensors 
         self._update_world()
 
@@ -120,10 +119,7 @@ class VoxSegServer:
     def _world_dim_callback(self, msg):
         print('Updating World Dim')
         self.world.update_dims(msg.world_dim, msg.grid_dim)
-        breakpoint()
-        image_tensor, depths, cam_locs = self.data.get_all_tensors(world=self.world)
-        torch.cuda.synchronize()
-        self.world.batched_update_world(image_tensor, depths, cam_locs, K_RGB)
+
 
 
     def _depth_image_callback(self, msg):
