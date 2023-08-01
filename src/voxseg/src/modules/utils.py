@@ -22,7 +22,11 @@ from std_msgs.msg import String
 import json
 import rospy
 
-
+def get_cam_msg(self, extrinsics):
+    """
+    extrinsics: a numpy array containing camera extrinsics, size (4,4)
+    """
+    return np.reshape(extrinsics, (16,)).tolist()
 
 def get_image_msg(image, timestamp) -> Image:
     """

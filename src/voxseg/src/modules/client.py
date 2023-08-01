@@ -112,25 +112,6 @@ class VoxSegClient:
 
 
 
-
-    def _get_cam_msg(self, extrinsics, timestamp) -> TransformationMatrix:
-        """
-        extrinsics: a numpy array containing camera extrinsics, size (4,4)
-        """
-        dim_row = MultiArrayDimension(label="row", size=4, stride=4*4)  # Stride is not needed for contiguous arrays
-        dim_col = MultiArrayDimension(label="col", size=4, stride=4)
-        layout = MultiArrayLayout()
-        layout.dim = [dim_row, dim_col]
-        layout.data_offset = 0
-
-        cam_msg = TransformationMatrix()
-        cam_msg.layout = layout
-        cam_msg.matrix = np.reshape(extrinsics, (16,)).tolist()
-
-        return cam_msg
-
-
-
 if __name__=='__main__':
     try:
         frontend = VoxSegClient()
