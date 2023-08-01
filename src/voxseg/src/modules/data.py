@@ -172,6 +172,6 @@ class UnalignedData(BackendData):
             return None
 
         depth_extr_np = np.stack(self.depth_extrinsics)
-        depth_extr_tensor = torch.from_numpy(depth_extr_np).to(self.device)
-        
+        depth_extr_tensor = torch.from_numpy(depth_extr_np).float().to(self.device)
+
         return image_tensor, depth_tensor, rgb_extr_tensor, depth_extr_tensor

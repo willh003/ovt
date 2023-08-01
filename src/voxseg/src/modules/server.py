@@ -15,7 +15,7 @@ from modules.data import BackendData, UnalignedData
 from modules.voxel_world import VoxelWorld
 
 #from modules.config import *
-from modules.real_data_cfg import *
+from modules.config import *
 from modules.utils import convert_dictionary_array_to_dict
 
 class VoxSegServer:
@@ -64,12 +64,13 @@ class VoxSegServer:
         # tensors will be None if in batch mode and no tensors have 
         # been added since the last time get_tensors was called
         tensors = self.data.get_tensors(world=self.world)
+
         if tensors and self.cams_aligned:
             image_tensor, depths, cam_locs = tensors
-            self.world.batched_update_world(image_tensor, depths, cam_locs, K_RGB)
+            self.world.batched_update_world(image_tensor, depths, cam_locs, K_RGB.float())
         elif tensors and not self.cams_aligned:
             image_tensor, depth_tensor, rgb_extr_tensor, depth_extr_tensor = tensors
-            self.world.batched_update_world(image_tensor, depth_tensor, rgb_extr_tensor, depth_extr_tensor, K_RGB, K_DEPTH)
+            self.world.batched_update_world(image_tensor, depth_tensor, rgb_extr_tensor,K_RGB.float(), depth_extr_tensor , K_DEPTH.float())
         
         self.img_count = 0
         torch.cuda.synchronize() # wait for all world updates before doing inference

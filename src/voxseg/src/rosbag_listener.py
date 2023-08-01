@@ -19,7 +19,6 @@ def pcl_callback(msg):
                     # x,y,z can be retrieved from the x[0],x[1],x[2]
         xyz = np.append(xyz,[[x[0],x[1],x[2]]], axis = 0)
 
-    breakpoint()
 
 def main():
     rospy.init_node('rosbage_listener_node', anonymous=True)
