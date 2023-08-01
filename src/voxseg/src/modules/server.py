@@ -164,6 +164,7 @@ class VoxSegServer:
     def _reset_callback(self, msg):
         self.world.reset_world()
         self.data.reset_all()
+        self.recast_required = True
         self.img_count = 0
         print('World has been reset')
 
