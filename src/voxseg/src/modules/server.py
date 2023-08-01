@@ -40,6 +40,7 @@ class VoxSegServer:
         # keep track of number of images seen so far
         self.img_count = 0
         self.batch_size = BATCH_SIZE
+        self.recast_required = True
         
         rospy.init_node(SERVER_NODE, anonymous=True)
         rospy.Subscriber(IMAGE_TOPIC, DepthImageInfo, self._depth_image_callback)
@@ -77,7 +78,10 @@ class VoxSegServer:
 
     def _handle_compute_request(self, req):
         # Update from the most recent tensors 
-        self._update_world()
+
+        if self.recast_required:
+            self._update_world()
+            self.recast_required = False
 
         min_pts_in_voxel = req.min_pts_in_voxel
         if self.data.use_prompts:
@@ -120,6 +124,7 @@ class VoxSegServer:
         print('Updating World Dim')
         self.world.update_dims(msg.world_dim, msg.grid_dim)
         self.data.fill_buffers()
+        self.recast_required = True
 
 
 
