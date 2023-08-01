@@ -97,44 +97,47 @@ class ImageSaver:
             elif tf.child_frame_id == depth_frame_id:
                 self.tf_depth_pub.publish(tf)
 
-    def callback(self, rgb_image:CompressedImage, depth_image:Image, 
-                 tf_odom:TransformStamped, tf_rgb:TransformStamped, tf_depth:TransformStamped):
+    def callback(self,
+                 input_rgb_image: CompressedImage, 
+                 input_depth_image: Image, 
+                 odom_transform: TransformStamped, 
+                 rgb_transform: TransformStamped, 
+                 depth_transform: TransformStamped):
         try:
-            ### Convert RGB compressed image to OpenCV format, then to numpy
-            rgb_img = self.bridge.compressed_imgmsg_to_cv2(rgb_image, desired_encoding="bgr8")
-            #cv2.imwrite(f'rgb_{rgb_msg.header.stamp}.jpg', rgb_img)
-            rgb_img_np = np.array(rgb_img)
+            # Convert compressed RGB image to OpenCV format and then to numpy array
+            decoded_rgb_image = self.bridge.compressed_imgmsg_to_cv2(input_rgb_image, desired_encoding="bgr8")
+            rgb_image_array = np.array(decoded_rgb_image)
 
-            ### Convert depth image to OpenCV format, then to numpy
-            depth_img = self.bridge.imgmsg_to_cv2(depth_image, desired_encoding="passthrough")
-            #cv2.imwrite(f'depth_{depth_msg.header.stamp}.png', depth_img)
-            depth_img_np = np.array(depth_img)
+            # Convert depth image to OpenCV format and then to numpy array
+            decoded_depth_image = self.bridge.imgmsg_to_cv2(input_depth_image, desired_encoding="passthrough")
+            depth_image_array = np.array(decoded_depth_image)
             
+            # Extract transformation matrices from input transformations
+            odom_to_base_transform = transformation_matrix_of_pose(pose_of_tf(odom_transform))
+            base_to_rgb_transform = transformation_matrix_of_pose(pose_of_tf(rgb_transform))
+            base_to_depth_transform = transformation_matrix_of_pose(pose_of_tf(depth_transform))
+
+            # Compute global transformations for RGB and depth images
+            global_rgb_transform = (odom_to_base_transform @ base_to_rgb_transform).flatten()
+            global_depth_transform = (odom_to_base_transform @ base_to_depth_transform).flatten()
+
+            # Create message objects from the numpy arrays and transformations
+            rgb_image_message = get_image_msg(rgb_image_array, input_depth_image.header.stamp)
+            depth_image_message = get_depth_msg(depth_image_array, input_depth_image.header.stamp)
+            rgb_transform_message = get_cam_msg(global_rgb_transform)
+            depth_transform_message = get_cam_msg(global_depth_transform)
+
+            # Publish the extracted and processed information
+            self.data_pub.publish(DepthImageInfo(rgb_image=rgb_image_message, 
+                                                depth_image=depth_image_message, 
+                                                cam_extrinsics=rgb_transform_message, 
+                                                depth_extrinsics=depth_transform_message))
             
-            ### Get transformations as matrices
-            base_in_odom = transformation_matrix_of_pose(pose_of_tf(tf_odom))
-            rgb_in_base = transformation_matrix_of_pose(pose_of_tf(tf_rgb))
-            depth_in_base = transformation_matrix_of_pose(pose_of_tf(tf_depth))
+            rospy.loginfo("Saved synchronized images with timestamp: %s", input_depth_image.header.stamp)
 
-            ### combine to get global transforms, then to msg
-            rgb_extrinsics = (base_in_odom @ rgb_in_base).flatten()
-            depth_extrinsics = (base_in_odom @ depth_in_base).flatten()
-
-            ### make msg types            
-            rgb_msg = get_image_msg(rgb_img_np, depth_image.header.stamp)
-            depth_msg = get_depth_msg(depth_img_np, depth_image.header.stamp)
-            rgb_ext_msg = get_cam_msg(rgb_extrinsics)
-            depth_ext_msg = get_cam_msg(depth_extrinsics)
-
-            ### pass to Data object
-            self.data_pub.publish(DepthImageInfo(rgb_image=rgb_msg, depth_image=depth_msg, cam_extrinsics=rgb_ext_msg, depth_extrinsics=depth_ext_msg))
-        
-            rospy.loginfo("Saved synchronized images with timestamp: %s", rgb_image.header.stamp)
-            
-        except CvBridgeError as e:
-            rospy.logerr(e)
-        except ValueError as e:
-            rospy.logerr(e)
+        except Exception as e:
+            # Consider adding some error logging here
+            rospy.logerr(f"Error processing images: {str(e)}")
 
 
 if __name__ == '__main__':
