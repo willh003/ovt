@@ -13,7 +13,7 @@ from geometry_msgs.msg import TransformStamped
 import yaml
 
 # Method cutout from Wild Visual Navigation--------------------#
-from typing import Sequence
+from typing import List, Sequence
 from liegroups import SE3, SO3
 def transformation_matrix_of_pose(pose : Sequence[float]):
     """Convert a translation and rotation into a 4x4 transformation matrix.
@@ -30,14 +30,14 @@ def transformation_matrix_of_pose(pose : Sequence[float]):
     return matrix
 #--------------------------------------------------------------#
 
-def pose_from_yaml(tf_yaml) -> np.ndarray:
-    tx = tf_yaml["transform"]["translation"]["x"]
-    ty = tf_yaml["transform"]["translation"]["y"]
-    tz = tf_yaml["transform"]["translation"]["z"]
-    qx = tf_yaml["transform"]["rotation"]["x"]
-    qy = tf_yaml["transform"]["rotation"]["y"]
-    qz = tf_yaml["transform"]["rotation"]["z"]
-    qw = tf_yaml["transform"]["rotation"]["w"]
+def pose_of_tf(tf : TransformStamped) -> np.ndarray:
+    tx = tf.transform.translation.x
+    ty = tf.transform.translation.y
+    tz = tf.transform.translation.z
+    qx = tf.transform.rotation.x
+    qy = tf.transform.rotation.y
+    qz = tf.transform.rotation.z
+    qw = tf.transform.rotation.w
     return np.array([tx,ty,tz,qx,qy,qz,qw])
 
 
@@ -73,32 +73,26 @@ class ImageSaver:
     
     def publish_tf_list_to_specific_tfs(self, tf_msg : TFMessage):
         # get camera tfs
-        tf_data = yaml.safe_load(tf_msg)
+        tfs_list : List[TransformStamped] = tf_msg.transforms
 
         # find transforms of interest        
         rgb_frame_id = "wide_angle_camera_front_camera_parent" #rgb_img
         depth_frame_id = "depth_camera_front_upper_depth_optical_frame" #depth_img
         base_frame_id = "base"
 
-        # Need to get (child_frame_id == ^^above)
-        # For each child, publish TransformStamped
-
-        print("B")
-        for entry in tf_data:
-            if entry.get("child_frame_id") == rgb_frame_id:
-                rgb_yaml = entry["transform"]
-                break
-            elif entry.get("child_frame_id") == depth_frame_id:
-                depth_yaml = entry["transform"]
-                break
-            elif entry.get("child_frame_id") == base_frame_id:
-                base_yaml = entry["transform"]
-                break
+        print("PUBSUB")
+        for tf in tfs_list:
+            if tf.child_frame_id == base_frame_id:
+                self.tf_odom_pub.publish(tf)
+            elif tf.header.frame_id == rgb_frame_id:
+                self.tf_rgb_pub.publish(tf)
+            elif tf.header.frame_id == depth_frame_id:
+                self.tf_depth_pub.publish(tf)
 
     def callback(self, rgb_image:CompressedImage, depth_image:Image, 
                  tf_odom:TransformStamped, tf_rgb:TransformStamped, tf_depth:TransformStamped):
+        print("CALLBACK")
         try:
-            ### NOTE: THIS STUFF IS OKAY ####
             # Convert RGB compressed image to OpenCV format, then to numpy
             rgb_img = self.bridge.compressed_imgmsg_to_cv2(rgb_image, desired_encoding="bgr8")
             #cv2.imwrite(f'rgb_{rgb_msg.header.stamp}.jpg', rgb_img)
@@ -108,16 +102,15 @@ class ImageSaver:
             depth_img = self.bridge.imgmsg_to_cv2(depth_image, desired_encoding="passthrough")
             #cv2.imwrite(f'depth_{depth_msg.header.stamp}.png', depth_img)
             depth_img_np = np.array(depth_img)
-            ### END OKAY ####
             
-            ### get local transforms
-            # rgb_in_base_tf = transformation_matrix_of_pose(pose_from_yaml(rgb_yaml))
-            # depth_in_base_tf = transformation_matrix_of_pose(pose_from_yaml(depth_yaml))
-            # base_in_odom_tf = transformation_matrix_of_pose(pose_from_yaml(base_yaml))
+            # Get transformations as matrices
+            base_in_odom = pose_of_tf(tf_odom)
+            rgb_in_base = pose_of_tf(tf_rgb)
+            depth_in_base = pose_of_tf(tf_depth)
 
             ### combine to get global transforms
-            rgb_extrinsics = None #base_in_odom_tf @ rgb_in_base_tf
-            depth_extrinsics = None #base_in_odom_tf @ depth_in_base_tf
+            rgb_extrinsics = base_in_odom @ rgb_in_base
+            depth_extrinsics = base_in_odom @ depth_in_base
 
             ### pass to Data object
             self.data.add_depth_image(rgb_img_np, depth_img_np, rgb_extrinsics, depth_extrinsics)
@@ -134,7 +127,6 @@ class ImageSaver:
 
 
 if __name__ == '__main__':
-
     rospy.init_node('image_saver_node')
     rospy.loginfo("Set up (rgb,depth) image saver node")
     ImageSaver()
