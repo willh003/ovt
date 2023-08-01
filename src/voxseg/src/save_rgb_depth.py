@@ -104,9 +104,9 @@ class ImageSaver:
             depth_img_np = np.array(depth_img)
             
             # Get transformations as matrices
-            base_in_odom = pose_of_tf(tf_odom)
-            rgb_in_base = pose_of_tf(tf_rgb)
-            depth_in_base = pose_of_tf(tf_depth)
+            base_in_odom = transformation_matrix_of_pose(pose_of_tf(tf_odom))
+            rgb_in_base = transformation_matrix_of_pose(pose_of_tf(tf_rgb))
+            depth_in_base = transformation_matrix_of_pose(pose_of_tf(tf_depth))
 
             ### combine to get global transforms
             rgb_extrinsics = base_in_odom @ rgb_in_base
