@@ -90,20 +90,42 @@ class VoxelWorld:
             T_d: (B, 4, 4), depth camera extrinsics
         """
 
-        B, h, w, _= rgb.size()
+        B, _, h, w= rgb.size()
+        
+        t1 = time.time()
+
         embeddings = self.get_image_embeddings(rgb)
         embeddings_upsampled = interpolate_features(embeddings, h, w)
-        
-    
-        valid_world_locs, valid_rgb_pixels = align_depth_to_rgb(rgb.to(self.device), K_rgb.to(self.device),
-                                                                    T_rgb.to(self.device), d.to(self.device), K_d.to(self.device), T_d.to(self.device))
-        
-        for i in range(B):
-            
-            valid_embeddings = embeddings_upsampled[i, valid_rgb_pixels[i]] 
-            voxel_locs = self.world_to_voxel(valid_world_locs[i].unsqueeze(0))
 
+        t2 = time.time()
+        print(f'Image embedding time: {t2 - t1}')
+
+        rgb = rgb.to(self.device)
+        K_rgb = K_rgb.to(self.device)
+        T_rgb = T_rgb.to(self.device)
+        d = d.to(self.device)
+        K_d = K_d.to(self.device)
+        T_d = T_d.to(self.device)
+
+        for i in range(B):
+            rgb_i = rgb[i]
+            d_i = d[i]
+            T_rgb_i = T_rgb[i]
+            T_d_i = T_d[i]
+
+            valid_world_locs, valid_rgb_pixels = align_depth_to_rgb(rgb_i, K_rgb, T_rgb_i, d_i, K_d, T_d_i)
+        
+            # Necessary to convert to a bool mask to avoid overflowing vram
+            valid_pixel_mask = torch.zeros((h,w), dtype=bool)
+            valid_pixel_mask[valid_rgb_pixels[:,0], valid_rgb_pixels[:,1]] = True 
+            
+            valid_embeddings = embeddings_upsampled[i, valid_pixel_mask, :][None]
+            voxel_locs = self.world_to_voxel(valid_world_locs.unsqueeze(0))
             self.voxels, self.grid_count = update_grids_aligned(valid_embeddings, voxel_locs, self.voxels, self.grid_count)
+        
+        t3 = time.time()
+        print(f'Projection and World Update Time: {t3 - t2}')
+
 
     def _update_world(self, images, depths, cam_extrinsics, cam_intrinsics):
         """

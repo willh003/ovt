@@ -121,7 +121,6 @@ def update_grids_aligned(feature_map, voxels, feature_grid, grid_count):
     Returns:
         feature_grid, grid_count after updating the selected voxels with the new features
     """
-
     B, N, _ = feature_map.size()
 
     # for each batch
@@ -129,6 +128,7 @@ def update_grids_aligned(feature_map, voxels, feature_grid, grid_count):
         xv = voxels[i, :, 0].long()
         yv = voxels[i, :, 1].long()
         zv = voxels[i, :, 2].long() 
+
 
         feature_grid[xv, yv, zv] += feature_map[i]
         grid_count[xv, yv, zv] += torch.ones(N).cuda()
@@ -200,13 +200,13 @@ def interpolate_features(feature_map, new_height, new_width):
         output = F.interpolate(input, size=(new_height, new_width), mode='nearest')
         return output.permute(0,2, 3, 1)
 
-def get_all_pixels(numrows, numcols):
+def get_all_pixels(numrows, numcols, device='cuda'):
     """
     Inputs:
         numrows, numcols: rows and columns in the image
 
     Returns:
-        torch.tensor, of shape (numrows*numcols, 3), containing homogenous coordinates for each pixel
+        torch.tensor on device, of shape (numrows*numcols, 3), containing homogenous coordinates for each pixel
 
     """
 
@@ -216,10 +216,8 @@ def get_all_pixels(numrows, numcols):
     # Reshape to 1D arrays
     oned_pixels = pixels.reshape(-1, 2)
     ones = torch.ones_like(oned_pixels)
-    homo_pixels = torch.concat((oned_pixels,ones),1).cuda()
+    homo_pixels = torch.concat((oned_pixels,ones),1).to(device)
     return homo_pixels
-
-
 
 def expand_to_batch_size(tensor, batches):
     """
@@ -234,47 +232,77 @@ def expand_to_batch_size(tensor, batches):
 
     return torch.repeat_interleave(tensor[None], batches, dim=0) 
 
+def unique_with_indices(x, dim=None):
+    """Unique elements of x and indices of those unique elements
+    https://github.com/pytorch/pytorch/issues/36748#issuecomment-619514810
+
+    e.g.
+
+    unique(tensor([
+        [1, 2, 3],
+        [1, 2, 4],
+        [1, 2, 3],
+        [1, 2, 5]
+    ]), dim=0)
+    => (tensor([[1, 2, 3],
+                [1, 2, 4],
+                [1, 2, 5]]),
+        tensor([0, 1, 3]))
+    """
+    unique, inverse = torch.unique(
+        x, sorted=True, return_inverse=True, dim=dim)
+    perm = torch.arange(inverse.size(0), dtype=inverse.dtype,
+                        device=inverse.device)
+    inverse, perm = inverse.flip([0]), perm.flip([0])
+    return unique, inverse.new_empty(unique.size(0)).scatter_(0, inverse, perm)
+
 def align_depth_to_rgb(rgb, K_rgb, T_rgb, d, K_d, T_d):
     """
     NOTE: currently does not support batching, because this would result in jagged arrays
     Inputs:
-        rgb: torch.Tensor, (B, 3, h, w)
-        K_rgb: (B, 4, 4), rgb camera intrinsics
-        T_rgb: (B, 4, 4), rgb camera extrinsics
-        d: torch.Tensor, (B, 1, h, w)
-        K_d: (B, 4, 4), depth camera intrinsics
-        T_d: (B, 4, 4), depth camera extrinsics
+        rgb: torch.Tensor, (3, h, w)
+        K_rgb: (4, 4), rgb camera intrinsics
+        T_rgb: (4, 4), rgb camera extrinsics
+        d: torch.Tensor, (1, h, w)
+        K_d: (4, 4), depth camera intrinsics
+        T_d: (4, 4), depth camera extrinsics
     Returns:
         Two tensors, shape (M, 3) and (M, 2). The first tensor contains world coords of the depths,
         and the second contains the pixel coordinates in rgb image space for those depths.
     """
-    B, _, h_d, w_d = d.size()
-    _, _, h_rgb, w_rgb = rgb.size()
+    _, h_d, w_d = d.size()
+    _, h_rgb, w_rgb = rgb.size()
     pixels_d = get_all_pixels(h_d, w_d)
-    d_in_wld = unproject(K_d, T_d, pixels_d, d.squeeze(1), return_homogenous=True)
+    d_in_wld = unproject(K_d, T_d[None], pixels_d, d, return_homogenous=True)
 
-    d_in_rgb = project(K_rgb, T_rgb, d_in_wld)
-    boundary_mask = (d_in_rgb[:,:,0] < h_rgb) & (d_in_rgb[:,:,0] > 0) & (d_in_rgb[:,:,1] < w_rgb) & (d_in_rgb[:,:,1] > 0)
+    d_in_rgb = project(K_rgb, T_rgb[None], d_in_wld).squeeze(0)
+    boundary_mask = (d_in_rgb[:,0] < h_rgb) & (d_in_rgb[:,0] > 0) & (d_in_rgb[:,1] < w_rgb) & (d_in_rgb[:,1] > 0)
     
-    d_in_wld_clean = []
-    d_px_in_rgb = []
+    valid_rgb_pixels = d_in_rgb[boundary_mask].long()
+    pixels_in_wld = d_in_wld.squeeze(0)[:3, boundary_mask].nan_to_num().permute(1,0)
 
-    for i in range(B):
-        d_px_in_rgb.append(d_in_rgb[i][boundary_mask[i]].long())
-        d_in_wld_clean.append(d_in_wld[i].permute(0,2,1)[boundary_mask[i]][:,:3].nan_to_num())
-        
-    return d_in_wld_clean, d_px_in_rgb
+
+    # if two depths correspond to one pixel, just take the first one (averaging may cause problems here)
+    valid_rgb_pixels, valid_indices = unique_with_indices(valid_rgb_pixels, dim=0) 
+    pixels_in_wld = pixels_in_wld[valid_indices]
+
+    assert len(valid_rgb_pixels) == len(pixels_in_wld)
+
+    # (x, y, z) x N, (px_i, px_j) x N
+    return pixels_in_wld, valid_rgb_pixels
     
-        
 
+    
 def project(intrinsics, extrinsics, points):
     """
     Inputs:
-        intrinsics: Bx4x4
-        extrinsics: Bx4x4
-        points: Bx4xn
+        intrinsics: (4, 4)
+
+        extrinsics: (B, 4, 4)
+
+        points: (B, 4, N)
     Returns:
-        torch.LongTensor, Bxnx2, coordinates in image space
+        torch.LongTensor,  (B, N, 2), coordinates in image space
     """
     transformation= intrinsics @ torch.inverse(extrinsics)
     image_pts = transformation @ points
@@ -286,6 +314,19 @@ def project(intrinsics, extrinsics, points):
     return px
 
 def unproject(intrinsics, extrinsics, pixels, depth, return_homogenous=False):
+    """
+    Inputs:
+        intrinsics: (4,4)
+
+        extrinsics: (B, 4, 4)
+
+        pixels: (N, 4)
+
+        depth: (B, h, w)
+    Returns:
+        (B, 4, h*w ) if return_homogenous else (B, 3, h, w)
+    
+    """
     Kinv = torch.inverse(intrinsics)
     # get pixel coordinates in the camera plane
     cam_pts = (Kinv @ pixels.T).T
@@ -492,3 +533,27 @@ def visualize_voxel_occupancy(vxw):
 
     plt.show()
 
+def test_project_unproject_consistency():
+    # Test for consistency between project and unproject functions
+
+    B = 1 
+    h, w = 540, 720  
+
+    # Generate some random intrinsics, extrinsics, and points
+    intrinsics = torch.as_tensor([[575.6050407221768, 0.0, 745.7312198525915, 0.0],
+                        [0.0, 578.564849365178, 519.5207040671075, 0.0],
+                       [ 0.0, 0.0, 1.0, 0.0],
+                       [ 0.0, 0.0, 0.0, 1.0]]).cuda()
+    extrinsics = torch.rand(B, 4, 4).cuda()
+    px = get_all_pixels(h, w)
+    depth = torch.ones(B, h, w).cuda() * 5
+
+    unprojected_points = unproject(intrinsics, extrinsics, px, depth, return_homogenous=True)
+    projected_points = project(intrinsics, extrinsics, unprojected_points)
+    breakpoint()
+    # Check if the original and unprojected points are equal
+    assert torch.allclose(px[:,:2], projected_points.squeeze(0).float())
+
+
+if __name__=='__main__':
+    test_project_unproject_consistency()

@@ -15,7 +15,7 @@ from modules.data import BackendData, UnalignedData
 from modules.voxel_world import VoxelWorld
 
 #from modules.config import *
-from modules.config import *
+from modules.real_data_cfg import *
 from modules.utils import convert_dictionary_array_to_dict
 
 class VoxSegServer:
@@ -154,11 +154,13 @@ class VoxSegServer:
 
         print(f'Depth Image {len(self.data.all_images)} Received')
 
+        self.recast_required = True
         # Update the world as images come in, if batch size is defined
         if self.batch_size:
             self.img_count += 1
             if self.img_count == self.batch_size:
                 self._update_world()
+                self.recast_required = False        
                 
 
     def _reset_callback(self, msg):
