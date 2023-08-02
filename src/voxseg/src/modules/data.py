@@ -170,7 +170,7 @@ class UnalignedData(BackendData):
 
     def reset_all(self):
         self.depth_extrinsics = []
-        self.reset_all()
+        super().reset_all()
 
     def get_all_tensors(self, world):
         depth_extr_np = np.stack(self.depth_extrinsics)
@@ -187,7 +187,7 @@ class UnalignedData(BackendData):
         else:
             return None
 
-        depth_extr_np = np.stack(self.depth_extrinsics)
+        depth_extr_np = np.stack(self.recent_depth_extr)
         depth_extr_tensor = torch.from_numpy(depth_extr_np).float().to(self.device)
 
         return image_tensor, depth_tensor, rgb_extr_tensor, depth_extr_tensor
