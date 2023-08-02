@@ -110,6 +110,7 @@ class ImageSaver:
 
             # Convert depth image to OpenCV format and then to numpy array
             decoded_depth_image = self.bridge.imgmsg_to_cv2(input_depth_image, desired_encoding="passthrough")
+            decoded_depth_image = cv2.rotate(decoded_depth_image, cv2.ROTATE_180)
             depth_image_array = np.array(decoded_depth_image)
             
             # Extract transformation matrices from input transformations

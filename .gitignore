@@ -3,6 +3,8 @@ devel/*
 logs/*
 .catkin_tools/*
 
+rgbout
+depthout
 .vscode
 src/voxseg/src/modules/ovseg/open_clip_training/openclip_data/*
 src/voxseg/src/modules/ovseg/open_clip_training/src/logs/*
