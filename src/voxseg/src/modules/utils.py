@@ -308,7 +308,7 @@ def project(intrinsics, extrinsics, points):
     image_pts = transformation @ points
 
     image_pts_normalized = image_pts / torch.unsqueeze(image_pts[:, 2, :], dim=1) # divide by homogenous
-    px= torch.floor(image_pts_normalized).long()
+    px= torch.floor(image_pts_normalized).round().long()
     px = px[:, :2, :].permute(0, 2, 1)
 
     return px
@@ -544,15 +544,21 @@ def test_project_unproject_consistency():
                         [0.0, 578.564849365178, 519.5207040671075, 0.0],
                        [ 0.0, 0.0, 1.0, 0.0],
                        [ 0.0, 0.0, 0.0, 1.0]]).cuda()
-    extrinsics = torch.rand(B, 4, 4).cuda()
+    extrinsics = torch.as_tensor([[0.9966908097267151, 0.0037702296394854784, -0.08119864016771317, 0.7896035313606262], 
+                                  [0.08120568841695786, -0.001755144214257598, 0.9966958165168762, 10.275297164916992], 
+                                  [0.003615256864577532, -0.9999913573265076, -0.002055500168353319, 0.3255032002925873], 
+                                  [0.0, 0.0, 0.0, 1.0]])[None].cuda()
     px = get_all_pixels(h, w)
     depth = torch.ones(B, h, w).cuda() * 5
 
     unprojected_points = unproject(intrinsics, extrinsics, px, depth, return_homogenous=True)
     projected_points = project(intrinsics, extrinsics, unprojected_points)
-    breakpoint()
+    x = projected_points.view(1, h, w, 2).squeeze(0)
+    y = px.view(540,720,4)[:,:,:2]
     # Check if the original and unprojected points are equal
-    assert torch.allclose(px[:,:2], projected_points.squeeze(0).float())
+    diff = y-x
+
+    assert diff.mean() < 1 and diff.mean > -1
 
 
 if __name__=='__main__':

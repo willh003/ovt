@@ -11,7 +11,7 @@ VOXSEG_ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BATCH_SIZE = None 
 
 WORLD_CONFIG = {
-    'world_dim': (20,20,5),
+    'world_dim': (30,30,5),
     'grid_dim': (40,40,10),
     'voxel_origin': (0,0,0),
     'embed_size': 768,

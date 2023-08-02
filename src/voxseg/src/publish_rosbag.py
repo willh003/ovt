@@ -48,6 +48,9 @@ def pose_of_tf(tf : TransformStamped) -> np.ndarray:
 class ImageSaver:
     def __init__(self):
         self.bridge = CvBridge()
+
+        self.tick = 0
+        self.rate = 50
         
         rospy.init_node('image_saver_node')
 
@@ -103,6 +106,10 @@ class ImageSaver:
                  odom_transform: TransformStamped, 
                  rgb_transform: TransformStamped, 
                  depth_transform: TransformStamped):
+        self.tick += 1
+        if self.tick % self.rate != 0:
+            return
+
         try:
             # Convert compressed RGB image to OpenCV format and then to numpy array
             decoded_rgb_image = self.bridge.compressed_imgmsg_to_cv2(input_rgb_image, desired_encoding="bgr8")
@@ -111,7 +118,7 @@ class ImageSaver:
             # Convert depth image to OpenCV format and then to numpy array
             decoded_depth_image = self.bridge.imgmsg_to_cv2(input_depth_image, desired_encoding="passthrough")
             decoded_depth_image = cv2.rotate(decoded_depth_image, cv2.ROTATE_180)
-            depth_image_array = np.array(decoded_depth_image)
+            depth_image_array = np.array(decoded_depth_image) / 1000 # NOTE: this converts mm to meters
             
             # Extract transformation matrices from input transformations
             odom_to_base_transform = transformation_matrix_of_pose(pose_of_tf(odom_transform))
@@ -140,8 +147,31 @@ class ImageSaver:
             # Consider adding some error logging here
             rospy.logerr(f"Error processing images: {str(e)}")
 
+    def save_rgb(self, input_rgb_image: CompressedImage):
+        try:
+            # Convert compressed RGB image to OpenCV format and then to numpy array
+            decoded_rgb_image = self.bridge.compressed_imgmsg_to_cv2(input_rgb_image, desired_encoding="bgr8")
+            cv2.imwrite(F"output/rgb_{self.rgb_batchnum}_{input_rgb_image.header.stamp.secs}_{input_rgb_image.header.stamp.nsecs}.png", decoded_rgb_image)
+            rospy.loginfo("Saved rgb, stamp@ %s", input_rgb_image.header.stamp.secs)
+        except CvBridgeError as e:
+            # Consider adding some error logging here
+            rospy.logerr(f"Error processing images: {str(e)}")
+
+    def save_depth(self, input_depth_image: Image):
+        try:
+            # Convert depth image to OpenCV format and then to numpy array
+            decoded_depth_image = self.bridge.imgmsg_to_cv2(input_depth_image, desired_encoding="32FC1")
+            decoded_depth_image = cv2.rotate(decoded_depth_image, cv2.ROTATE_180)
+            depth_img_vis = (1 - 255*decoded_depth_image/decoded_depth_image.max()).astype('uint8')
+            depth_img_vis = cv2.applyColorMap(depth_img_vis, cv2.COLORMAP_JET)
+
+            cv2.imwrite(F"output/depth_{self.depth_batchnum}_{input_depth_image.header.stamp.secs}_{input_depth_image.header.stamp.nsecs}.jpg", depth_img_vis)
+            rospy.loginfo("Saved depth, stamp@:%s", input_depth_image.header.stamp.secs)
+        except CvBridgeError as e:
+            # Consider adding some error logging here
+            rospy.logerr(f"Error processing images: {str(e)}")
 
 if __name__ == '__main__':
-    rospy.loginfo("Set up (rgb,depth) image saver node")
+    rospy.loginfo("Set up (rgb,depth) image publisher node")
     ImageSaver()
     rospy.spin()
