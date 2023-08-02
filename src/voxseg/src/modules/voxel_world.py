@@ -74,33 +74,36 @@ class VoxelWorld:
         self.voxels = torch.zeros_like(self.voxels)
         self.grid_count = torch.zeros_like(self.grid_count)
     
-    def _aligned_update_world(self, rgb, K_rgb, T_rgb, d, K_d, T_d):
+    def _aligned_update_world(self, rgb, T_rgb ,K_rgb, d,T_d, K_d):
         """
         Inputs:
             rgb: torch.Tensor, (B, 3, h, w)
 
-            K_rgb: (B, 4, 4), rgb camera intrinsics
+            K_rgb: (1, 4, 4), rgb camera intrinsics
 
             T_rgb: (B, 4, 4), rgb camera extrinsics
 
             d: torch.Tensor, (B, 1, h, w)
 
-            K_d: (B, 4, 4), depth camera intrinsics
+            K_d: (1, 4, 4), depth camera intrinsics
             
             T_d: (B, 4, 4), depth camera extrinsics
         """
 
         B, h, w, _= rgb.size()
-        valid_world_locs, valid_rgb_pixels = align_depth_to_rgb(rgb, K_rgb, T_rgb, d, K_d, T_d)
-        voxel_locs = self.world_to_voxel(valid_world_locs)
-
         embeddings = self.get_image_embeddings(rgb)
         embeddings_upsampled = interpolate_features(embeddings, h, w)
         
-        valid_embeddings = embeddings_upsampled[valid_rgb_pixels]
+    
+        valid_world_locs, valid_rgb_pixels = align_depth_to_rgb(rgb.to(self.device), K_rgb.to(self.device),
+                                                                    T_rgb.to(self.device), d.to(self.device), K_d.to(self.device), T_d.to(self.device))
+        
+        for i in range(B):
+            
+            valid_embeddings = embeddings_upsampled[i, valid_rgb_pixels[i]] 
+            voxel_locs = self.world_to_voxel(valid_world_locs[i].unsqueeze(0))
 
-
-        self.voxels, self.grid_count = update_grids_aligned(valid_embeddings, voxel_locs, self.voxels, self.grid_count)
+            self.voxels, self.grid_count = update_grids_aligned(valid_embeddings, voxel_locs, self.voxels, self.grid_count)
 
     def _update_world(self, images, depths, cam_extrinsics, cam_intrinsics):
         """
@@ -147,7 +150,6 @@ class VoxelWorld:
 
             splits = list(range(0, len(all_images), max_batch_size))
             splits.append(len(all_images)) # ensure the leftovers are still included
-
             for i in range(len(splits) - 1): 
                 start = splits[i]
                 end = splits[i+1]

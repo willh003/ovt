@@ -15,7 +15,7 @@ from modules.data import BackendData, UnalignedData
 from modules.voxel_world import VoxelWorld
 
 #from modules.config import *
-from modules.real_data_cfg import *
+from modules.config import *
 from modules.utils import convert_dictionary_array_to_dict
 
 class VoxSegServer:
@@ -40,6 +40,7 @@ class VoxSegServer:
         # keep track of number of images seen so far
         self.img_count = 0
         self.batch_size = BATCH_SIZE
+        self.recast_required = True
         
         rospy.init_node(SERVER_NODE, anonymous=True)
         rospy.Subscriber(IMAGE_TOPIC, DepthImageInfo, self._depth_image_callback)
@@ -64,20 +65,23 @@ class VoxSegServer:
         # tensors will be None if in batch mode and no tensors have 
         # been added since the last time get_tensors was called
         tensors = self.data.get_tensors(world=self.world)
+
         if tensors and self.cams_aligned:
             image_tensor, depths, cam_locs = tensors
-            self.world.batched_update_world(image_tensor, depths, cam_locs, K_RGB)
+            self.world.batched_update_world(image_tensor, depths, cam_locs, K_RGB.float())
         elif tensors and not self.cams_aligned:
             image_tensor, depth_tensor, rgb_extr_tensor, depth_extr_tensor = tensors
-            self.world.batched_update_world(image_tensor, depth_tensor, rgb_extr_tensor, depth_extr_tensor, K_RGB, K_DEPTH)
+            self.world.batched_update_world(image_tensor, depth_tensor, rgb_extr_tensor,K_RGB.float(), depth_extr_tensor , K_DEPTH.float())
         
         self.img_count = 0
         torch.cuda.synchronize() # wait for all world updates before doing inference
 
     def _handle_compute_request(self, req):
-        
         # Update from the most recent tensors 
-        self._update_world()
+
+        if self.recast_required:
+            self._update_world()
+            self.recast_required = False
 
         min_pts_in_voxel = req.min_pts_in_voxel
         if self.data.use_prompts:
@@ -119,8 +123,9 @@ class VoxSegServer:
     def _world_dim_callback(self, msg):
         print('Updating World Dim')
         self.world.update_dims(msg.world_dim, msg.grid_dim)
-        image_tensor, depths, cam_locs = self.data.get_all_tensors(world=self.world)
-        self.world.batched_update_world(image_tensor, depths, cam_locs, K_RGB)
+        self.data.fill_buffers()
+        self.recast_required = True
+
 
 
     def _depth_image_callback(self, msg):
@@ -159,6 +164,7 @@ class VoxSegServer:
     def _reset_callback(self, msg):
         self.world.reset_world()
         self.data.reset_all()
+        self.recast_required = True
         self.img_count = 0
         print('World has been reset')
 

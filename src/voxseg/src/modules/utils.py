@@ -236,6 +236,7 @@ def expand_to_batch_size(tensor, batches):
 
 def align_depth_to_rgb(rgb, K_rgb, T_rgb, d, K_d, T_d):
     """
+    NOTE: currently does not support batching, because this would result in jagged arrays
     Inputs:
         rgb: torch.Tensor, (B, 3, h, w)
         K_rgb: (B, 4, 4), rgb camera intrinsics
@@ -244,20 +245,24 @@ def align_depth_to_rgb(rgb, K_rgb, T_rgb, d, K_d, T_d):
         K_d: (B, 4, 4), depth camera intrinsics
         T_d: (B, 4, 4), depth camera extrinsics
     Returns:
-        Two tensors, shape (B, M, 3) and (B, M, 2). The first tensor contains world coords of the depths,
+        Two tensors, shape (M, 3) and (M, 2). The first tensor contains world coords of the depths,
         and the second contains the pixel coordinates in rgb image space for those depths.
     """
-    h_d, w_d = d.size()
-    h_rgb, w_rgb, _ = rgb.size()
+    B, _, h_d, w_d = d.size()
+    _, _, h_rgb, w_rgb = rgb.size()
     pixels_d = get_all_pixels(h_d, w_d)
-    d_in_wld = unproject(K_d, T_d, pixels_d, d)
+    d_in_wld = unproject(K_d, T_d, pixels_d, d.squeeze(1), return_homogenous=True)
 
     d_in_rgb = project(K_rgb, T_rgb, d_in_wld)
     boundary_mask = (d_in_rgb[:,:,0] < h_rgb) & (d_in_rgb[:,:,0] > 0) & (d_in_rgb[:,:,1] < w_rgb) & (d_in_rgb[:,:,1] > 0)
     
-    d_px_in_rgb = d_in_rgb[boundary_mask].floor().long()
-    d_in_wld_clean = d_in_wld[boundary_mask].nan_to_num().permute(0,2,3,1)
+    d_in_wld_clean = []
+    d_px_in_rgb = []
 
+    for i in range(B):
+        d_px_in_rgb.append(d_in_rgb[i][boundary_mask[i]].long())
+        d_in_wld_clean.append(d_in_wld[i].permute(0,2,1)[boundary_mask[i]][:,:3].nan_to_num())
+        
     return d_in_wld_clean, d_px_in_rgb
     
         
@@ -267,19 +272,20 @@ def project(intrinsics, extrinsics, points):
     Inputs:
         intrinsics: Bx4x4
         extrinsics: Bx4x4
-        points: Bxnx4
+        points: Bx4xn
     Returns:
         torch.LongTensor, Bxnx2, coordinates in image space
     """
-    image_pts= (intrinsics @ torch.inverse(extrinsics) @ points)
+    transformation= intrinsics @ torch.inverse(extrinsics)
+    image_pts = transformation @ points
 
-    image_pts_normalized = image_pts / image_pts[:, 2, :] # divide by homogenous
+    image_pts_normalized = image_pts / torch.unsqueeze(image_pts[:, 2, :], dim=1) # divide by homogenous
     px= torch.floor(image_pts_normalized).long()
     px = px[:, :2, :].permute(0, 2, 1)
 
     return px
 
-def unproject(intrinsics, extrinsics, pixels, depth):
+def unproject(intrinsics, extrinsics, pixels, depth, return_homogenous=False):
     Kinv = torch.inverse(intrinsics)
     # get pixel coordinates in the camera plane
     cam_pts = (Kinv @ pixels.T).T
@@ -287,7 +293,10 @@ def unproject(intrinsics, extrinsics, pixels, depth):
     cam_pts_norm = cam_pts / (torch.norm(cam_pts[:, :3], dim=1)[None].T)
 
     batches, height, width = depth.size()
-    all_wld_pts = torch.zeros((batches, 3, height, width)).cuda()
+    if not return_homogenous:
+        all_wld_pts = torch.zeros((batches, 3, height, width)).cuda()
+    else:
+        all_wld_pts = torch.zeros((batches, 4, height*width)).cuda()
 
     # for each image
     for i in range(len(extrinsics)):
@@ -299,9 +308,11 @@ def unproject(intrinsics, extrinsics, pixels, depth):
 
         wld_pts = (extrinsics[i].cuda() @ cam_pts_depth.T).T  # Transform camera coordinates to world coordinates
         
-        wld_pts_unhomo = wld_pts[:, :3]
-
-        all_wld_pts[i] = wld_pts_unhomo.permute(1,0).view(3, height, width)
+        if not return_homogenous:
+            wld_pts_unhomo = wld_pts[:, :3]
+            all_wld_pts[i] = wld_pts_unhomo.permute(1,0).view(3, height, width)
+        else:
+            all_wld_pts[i] = wld_pts.permute(1,0).view(4, height*width)
 
     return all_wld_pts
 

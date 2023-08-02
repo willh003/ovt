@@ -53,6 +53,17 @@ class BackendData:
         self.recent_depth_data.append(depths)
         self.recent_rgb_extr.append(rgb_extrinsics)
 
+    def fill_buffers(self):
+        """
+        Fill the recent data buffers with all past data
+        Requires: buffer_size < len(past data)
+        """
+        for i in range(len(self.all_images)):
+            self.recent_image_data.append(self.all_images[i]) 
+            self.recent_depth_data.append(self.all_depths[i]) 
+            self.recent_rgb_extr.append(self.rgb_extrinsics[i]) 
+
+
     def reset_buffers(self):
         """
         Call this in order to only look at new images that are added
@@ -152,6 +163,11 @@ class UnalignedData(BackendData):
         super().reset_buffers()
         self.recent_depth_extr.clear()
 
+    def fill_buffers(self):
+        super().fill_buffers()
+        for i in range(len(self.depth_extrinsics)):
+            self.recent_depth_extr.append(self.depth_extrinsics[i]) 
+
     def reset_all(self):
         self.depth_extrinsics = []
         self.reset_all()
@@ -172,6 +188,6 @@ class UnalignedData(BackendData):
             return None
 
         depth_extr_np = np.stack(self.depth_extrinsics)
-        depth_extr_tensor = torch.from_numpy(depth_extr_np).to(self.device)
-        
+        depth_extr_tensor = torch.from_numpy(depth_extr_np).float().to(self.device)
+
         return image_tensor, depth_tensor, rgb_extr_tensor, depth_extr_tensor
