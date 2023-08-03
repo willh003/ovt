@@ -1,0 +1,5 @@
+# ImageSeg.srv
+sensor_msgs/Image[] images
+# Return float array containing class probabilities for each pixel in the image, for each image. 
+# num_channels should be equal to the number of classes
+CustomChannelImage[] pixel_probs

@@ -19,9 +19,39 @@ from detectron2.engine.defaults import DefaultPredictor
 import torch
 import torch.nn.functional as F
 
-from ws.utils import *
+from open_vocab_seg.ws_ovseg_model import WSImageEncoder
+
 
 WINDOW_NAME = "OVSeg"
+def load_images(directory):
+
+    image_files = sorted([f for f in os.listdir(directory) if f.startswith('img_') and f.endswith('.jpg')])
+
+    images = []
+
+
+    for img_file in image_files:
+        # Load image into PIL
+        img_path = os.path.join(directory, img_file)
+        image = read_image(img_path, format="BGR")
+        image_copy = image.copy()
+        
+        images.append(torch.from_numpy(image_copy).permute(2,0,1))
+    
+    return torch.stack(images)
+
+def encoder_test(inp_folder, classes):
+    images = load_images(inp_folder)
+    encoder =  WSImageEncoder(config='configs/ovt.yaml')
+
+    # t1 = time.time()
+    # adapt = encoder.call_with_classes(images, classes, use_adapter=True)
+    # print(f'time: {time.time() - t1}')
+
+    no_adapt = encoder.call_with_classes(images, classes, use_adapter=False)
+
+    # diff = adapt - no_adapt
+    breakpoint()
 
 def quick_test(inp_file, classes):
     
@@ -32,76 +62,13 @@ def quick_test(inp_file, classes):
     print(cmd)
     os.system(cmd)
 
-class Lightweight:
-    """
-    Implements ovseg inference in a usable manner
-    """
-
-    def __init__(self, model_type = 'ws'):
-        if model_type == 'ws':
-            config_file = 'configs/ovseg_ws_demo.yaml'
-            opts = ['MODEL.WEIGHTS', 'models/ovseg_swinbase_vitL14_ft_mpt.pth']
-        elif model_type == 'large':
-            config_file = 'configs/ovseg_swinB_vitL_demo.yaml'
-            opts = ['MODEL.WEIGHTS', 'models/ovseg_swinbase_vitL14_ft_mpt.pth']
-        elif model_type == 'small':
-            config_file = 'configs/ovseg_R101c_vitB_bs32_120k.yaml'
-            opts = ['MODEL.WEIGHTS', 'models/ovseg_R101c_vitB16_ft_mpt.pth.pt']
-        
-        cfg = get_cfg()
-        # for poly lr schedule
-        add_deeplab_config(cfg)
-        add_ovseg_config(cfg)
-        cfg.merge_from_file(config_file)
-        cfg.merge_from_list(opts)
-        cfg.freeze()
-
-        self.demo = VisualizationDemo(cfg)
-
-
-    def run(self, input, class_names, output = './pred.png'):
-        """
-        Currently only supports single images at a time. we may want to make this batched
-        """
-        setup_logger(name="fvcore")
-        logger = setup_logger()
-
-        if len(input) == 1:
-            input = glob.glob(os.path.expanduser(input[0]))
-            assert input, "The input path(s) was not found"
-        for path in tqdm.tqdm(input, disable=not output):
-            # use PIL, to be consistent with evaluation
-            img = read_image(path, format="BGR")
-            start_time = time.time()
-            predictions, visualized_output = self.demo.run_on_image(img, class_names)
-            logger.info(
-                "{}: {} in {:.2f}s".format(
-                    path,
-                    "detected {} instances".format(len(predictions["instances"]))
-                    if "instances" in predictions
-                    else "finished",
-                    time.time() - start_time,
-                )
-            )
-            if output:
-                if os.path.isdir(output):
-                    assert os.path.isdir(output), output
-                    out_filename = os.path.join(output, os.path.basename(path))
-                else:
-                    assert len(input) == 1, "Please specify a directory with output"
-                    out_filename = output
-                visualized_output.save(out_filename)
-            else:
-                cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_NORMAL)
-                cv2.imshow(WINDOW_NAME, visualized_output.get_image()[:, :, ::-1])
-                if cv2.waitKey(0) == 27:
-                    break  # esc to quit
 
 if __name__=='__main__':
     # predictor = Lightweight()
     # predictor.run(['test_data/test_18/img_640.jpg'], ['excavator', 'other'])
-    quick_test('batch_test/cubesphereconetorus/test_0/img_260.jpg', ['shiny'])
-    #quick_test('test_data/site_test/img_600.jpg', ['equipment', 'ground'])
+   # quick_test('batch_test/cubesphereconetorus/test_0/img_260.jpg', ['shiny'])
+    encoder_test('test_data/site_test_2', ['equipment', 'ground'])
+    #quick_test('test_data/site_test/img_600.jpg', )
 #quick_test()
 '''
 python train_net.py --num-gpu 1 --eval-only --config-file configs/ovseg_R101c_vitB_bs32_120k.yaml MODEL.WEIGHTS /home/pcgta/Documents/playground/ov-seg/models/ovseg_R101c_vitB16_ft_mpt.pth.pt DATASETS.TEST \(\"ade20k_sem_seg_val\",\) 

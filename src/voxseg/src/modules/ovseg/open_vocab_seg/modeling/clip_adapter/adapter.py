@@ -49,7 +49,8 @@ class ClipAdapter(nn.Module):
                     )
                 }
             )
-        return torch.stack([self.text_feature_buffer[noun] for noun in noun_list])
+        torch_features = torch.stack([self.text_feature_buffer[noun] for noun in noun_list])
+        return torch_features
 
 
     def get_text_features(self, noun_list: List[str]):

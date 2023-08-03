@@ -22,178 +22,27 @@ from .modeling.clip_adapter import (
 )
 from .mask_former_model import MaskFormer
 from .utils.misc import get_gt_binary_masks
-from modules.ovseg.open_vocab_seg.modeling.clip_adapter.utils import build_clip_model
+
 
 from detectron2.projects.deeplab import add_deeplab_config
 from detectron2.data.detection_utils import read_image
 from detectron2.utils.logger import setup_logger
-from modules.ovseg.open_vocab_seg import add_ovseg_config
-
-from modules.ovseg.open_vocab_seg.utils import VisualizationDemo
 from detectron2.engine.defaults import DefaultPredictor
 
-@META_ARCH_REGISTRY.register()
-class WSDemo(MaskFormer):
-    """
-    This class is loaded in as the model for forward pass classification
-    It is referenced in the config as "META_ARCHITECTURE: WSDemo"
-    """
 
-    @configurable
-    def __init__(
-        self,
-        *,
-        backbone: Backbone,
-        sem_seg_head: nn.Module,
-        clip_adapter: nn.Module,
-        criterion: nn.Module,
-        num_queries: int,
-        panoptic_on: bool,
-        object_mask_threshold: float,
-        overlap_threshold: float,
-        metadata,
-        size_divisibility: int,
-        sem_seg_postprocess_before_inference: bool,
-        clip_ensemble: bool,
-        clip_ensemble_weight: float,
-        pixel_mean: Tuple[float],
-        pixel_std: Tuple[float],
-    ):
-        """
-        Args:
-            backbone: a backbone module, must follow detectron2's backbone interface
-            sem_seg_head: a module that predicts semantic segmentation from backbone features
-            criterion: a module that defines the loss
-            clip_adapter: adapter for clip-based mask classification
-            num_queries: int, number of queries
-            panoptic_on: bool, whether to output panoptic segmentation prediction
-            object_mask_threshold: float, threshold to filter query based on classification score
-                for panoptic segmentation inference
-            overlap_threshold: overlap threshold used in general inference for panoptic segmentation
-            metadata: dataset meta, get `thing` and `stuff` category names for panoptic
-                segmentation inference
-            size_divisibility: Some backbones require the input height and width to be divisible by a
-                specific integer. We can use this to override such requirement.
-            sem_seg_postprocess_before_inference: whether to resize the prediction back
-                to original input size before semantic segmentation inference or after.
-                For high-resolution dataset like Mapillary, resizing predictions before
-                inference will cause OOM error.
-            pixel_mean, pixel_std: list or tuple with #channels element, representing
-                the per-channel mean and std to be used to normalize the input image
-        """
-        super().__init__(
-            backbone=backbone,
-            sem_seg_head=sem_seg_head,
-            criterion=criterion,
-            num_queries=num_queries,
-            panoptic_on=panoptic_on,
-            object_mask_threshold=object_mask_threshold,
-            overlap_threshold=overlap_threshold,
-            metadata=metadata,
-            size_divisibility=size_divisibility,
-            sem_seg_postprocess_before_inference=sem_seg_postprocess_before_inference,
-            pixel_mean=pixel_mean,
-            pixel_std=pixel_std,
-        )
-        self.clip_adapter: ClipAdapter = clip_adapter
+from open_vocab_seg import add_ovseg_config
+from open_vocab_seg.utils import VisualizationDemo
+from open_vocab_seg.ovseg_model import OVSeg
+from open_vocab_seg.modeling.clip_adapter.utils import build_clip_model
 
-        self.clip_ensemble: bool = clip_ensemble
-        self.clip_ensemble_weight: float = clip_ensemble_weight
+# from modules.ovseg.open_vocab_seg.modeling.clip_adapter.utils import build_clip_model
+# from modules.ovseg.open_vocab_seg import add_ovseg_config
+# from modules.ovseg.open_vocab_seg.utils import VisualizationDemo
+# from modules.ovseg.open_vocab_seg.ovseg_model import OVSeg
 
-    @classmethod
-    def from_config(cls, cfg):
-        init_kwargs = MaskFormer.from_config(cfg)
-        text_templates = build_text_prompt(cfg.MODEL.CLIP_ADAPTER)
-
-        clip_adapter = MaskFormerClipAdapter(
-            cfg.MODEL.CLIP_ADAPTER.CLIP_MODEL_NAME,
-            text_templates,
-            mask_fill=cfg.MODEL.CLIP_ADAPTER.MASK_FILL,
-            mask_expand_ratio=cfg.MODEL.CLIP_ADAPTER.MASK_EXPAND_RATIO,
-            mask_thr=cfg.MODEL.CLIP_ADAPTER.MASK_THR,
-            mask_matting=cfg.MODEL.CLIP_ADAPTER.MASK_MATTING,
-            region_resized=cfg.MODEL.CLIP_ADAPTER.REGION_RESIZED,
-            mask_prompt_depth=cfg.MODEL.CLIP_ADAPTER.MASK_PROMPT_DEPTH,
-            mask_prompt_fwd=cfg.MODEL.CLIP_ADAPTER.MASK_PROMPT_FWD,
-        )
-        init_kwargs["clip_adapter"] = clip_adapter
-        init_kwargs["clip_ensemble"] = cfg.MODEL.CLIP_ADAPTER.CLIP_ENSEMBLE
-        init_kwargs[
-            "clip_ensemble_weight"
-        ] = cfg.MODEL.CLIP_ADAPTER.CLIP_ENSEMBLE_WEIGHT
-
-        return init_kwargs
-
-    def forward(self, batched_images):
-        """
-        Args:
-            batched_inputs: a list, batched outputs of :class:`DatasetMapper`.
-                Each item in the list contains the inputs for one image.
-                For now, each item in the list is a dict that contains:
-                   * "image": Tensor, image in (C, H, W) format.
-                   * "instances": per-region ground truth
-                   * Other information that's included in the original dicts, such as:
-                     "height", "width" (int): the output resolution of the model (may be different
-                     from input resolution), used in inference.
-        Returns:
-            list[dict]:
-                each dict has the results for one image. The dict contains the following keys:
-
-                * "sem_seg":
-                    A Tensor that represents the
-                    per-pixel segmentation prediced by the head.
-                    The prediction has shape KxHxW that represents the logits of
-                    each class for each pixel.
-                * "panoptic_seg":
-                    A tuple that represent panoptic output
-                    panoptic_seg (Tensor): of shape (height, width) where the values are ids for each segment.
-                    segments_info (list[dict]): Describe each segment in `panoptic_seg`.
-                        Each dict contains keys "id", "category_id", "isthing".
-        """
-
-        images = (batched_images.to(self.device) - self.pixel_mean) / self.pixel_std
-        features = self.backbone(images)
-        outputs = self.sem_seg_head(features)
-
-
-        return outputs
-
-
-    def demo_inference(self, mask_cls, mask_pred, image, class_names):
-        mask_cls = F.softmax(mask_cls, dim=-1)[..., :-1]
-        mask_pred = mask_pred.sigmoid()
-
-        regions = None
-        if self.clip_ensemble:
-            clip_cls, regions, valid_flag = self.clip_adapter(
-                image, class_names, mask_pred, normalize=True
-            )
-            if clip_cls is None:
-                clip_cls = torch.empty(0, mask_cls.shape[-1] + 1, device=self.device)
-            # softmax before index or after?
-            clip_cls = F.softmax(clip_cls[:, :-1], dim=-1)
-            if self.clip_ensemble_weight > 0:
-                map_back_clip_cls = mask_cls.new_ones(mask_cls.shape)
-                map_back_clip_cls[valid_flag] = clip_cls
-                mask_cls = torch.pow(mask_cls, 1 - self.clip_ensemble_weight) * \
-                           torch.pow(map_back_clip_cls, self.clip_ensemble_weight)
-
-            else:
-                # only clip model predictions are used
-                mask_cls = clip_cls
-                mask_pred = mask_pred[valid_flag]
-        bin_mask = mask_pred > self.clip_adapter.mask_thr
-        select_cls = torch.zeros(sum(valid_flag), mask_cls.shape[-1], device=self.device)
-        select_mask = torch.argmax(mask_cls, dim=0)
-        if len(class_names) == 2 and class_names[-1] == 'others':
-            select_mask = select_mask[:-1]
-        for idx in select_mask:
-            select_cls[idx] = mask_cls[idx]
-        semseg = torch.einsum("qc,qhw->chw", select_cls, bin_mask.float())
-        return semseg, regions
 
 class WSImageEncoder(DefaultPredictor):
-    def __init__(self, root_dir=None, ovseg_dir='modules/ovseg'):
+    def __init__(self, root_dir=None, ovseg_dir='modules/ovseg', config='configs/ovseg_ws_demo.yaml'):
         """
         Inputs:
             root_dir: the directory from which python is being called (PYTHON_PATH)
@@ -202,14 +51,13 @@ class WSImageEncoder(DefaultPredictor):
 
         # handle case where ovseg is called from outside the root
         # main use case is for ros
-        config_dir  = 'configs/ovseg_ws_demo.yaml'
         weights_file = 'models/ovseg_swinbase_vitL14_ft_mpt.pth'
         if root_dir:
-            config_path = os.path.join(root_dir, ovseg_dir, config_dir) 
+            config_path = os.path.join(root_dir, ovseg_dir, config) 
             weights_path = os.path.join(root_dir, ovseg_dir, weights_file)
         else:
             weights_path = weights_file
-            config_path = config_dir
+            config_path = config
         
         opts = ['MODEL.WEIGHTS', weights_path]
         cfg = self.setup_cfg(config_path, opts)
@@ -259,10 +107,22 @@ class WSImageEncoder(DefaultPredictor):
         with torch.no_grad():  # https://github.com/sphinx-doc/sphinx/issues/4258
             predictions = self.model(images)
             return predictions
+        
+    def call_with_classes(self, images, classes, use_adapter=False):
+        """
+        Runs the model on a batch of images, and uses the clip adaptor for classes
+            images: torch.tensor, (batch, channels, height, width)
+            classes: list of strings
+        Returns:
+            class_probs: torch.tensor, (batch, class_num, height, width)
+        """
+        with torch.no_grad():  
+            class_probs = self.model(images, classes, use_adapter)
+            return class_probs
 
     def image_list_to_tensor(self, images):
         """
-        images: a list of ndarray images in "BGR" format
+        images: Arraylike, containing ndarray images in "BGR" format
         """
         altered_images = []
 
@@ -280,6 +140,9 @@ class WSImageEncoder(DefaultPredictor):
 
         torch_images = torch.stack(altered_images)
         return torch_images
+
+
+
 
 class WSTextFeatureModel:
 
@@ -395,4 +258,340 @@ class WSTextFeatureModel:
         text_features = text_features / text_features.norm(dim=-1, keepdim=True)
 
         return text_features.to(device)
+
+@META_ARCH_REGISTRY.register()
+class OVTArch(MaskFormer):
+    @configurable
+    def __init__(
+        self,
+        *,
+        backbone: Backbone,
+        sem_seg_head: nn.Module,
+        clip_adapter: nn.Module,
+        criterion: nn.Module,
+        num_queries: int,
+        panoptic_on: bool,
+        object_mask_threshold: float,
+        overlap_threshold: float,
+        metadata,
+        size_divisibility: int,
+        sem_seg_postprocess_before_inference: bool,
+        clip_ensemble: bool,
+        clip_ensemble_weight: float,
+        pixel_mean: Tuple[float],
+        pixel_std: Tuple[float],
+    ):
+        """
+        Args:
+            backbone: a backbone module, must follow detectron2's backbone interface
+            sem_seg_head: a module that predicts semantic segmentation from backbone features
+            criterion: a module that defines the loss
+            clip_adapter: adapter for clip-based mask classification
+            num_queries: int, number of queries
+            panoptic_on: bool, whether to output panoptic segmentation prediction
+            object_mask_threshold: float, threshold to filter query based on classification score
+                for panoptic segmentation inference
+            overlap_threshold: overlap threshold used in general inference for panoptic segmentation
+            metadata: dataset meta, get `thing` and `stuff` category names for panoptic
+                segmentation inference
+            size_divisibility: Some backbones require the input height and width to be divisible by a
+                specific integer. We can use this to override such requirement.
+            sem_seg_postprocess_before_inference: whether to resize the prediction back
+                to original input size before semantic segmentation inference or after.
+                For high-resolution dataset like Mapillary, resizing predictions before
+                inference will cause OOM error.
+            pixel_mean, pixel_std: list or tuple with #channels element, representing
+                the per-channel mean and std to be used to normalize the input image
+        """
+        super().__init__(
+            backbone=backbone,
+            sem_seg_head=sem_seg_head,
+            criterion=criterion,
+            num_queries=num_queries,
+            panoptic_on=panoptic_on,
+            object_mask_threshold=object_mask_threshold,
+            overlap_threshold=overlap_threshold,
+            metadata=metadata,
+            size_divisibility=size_divisibility,
+            sem_seg_postprocess_before_inference=sem_seg_postprocess_before_inference,
+            pixel_mean=pixel_mean,
+            pixel_std=pixel_std,
+        )
+        self.clip_adapter: ClipAdapter = clip_adapter
+
+        self.clip_ensemble: bool = clip_ensemble
+        self.clip_ensemble_weight: float = clip_ensemble_weight
+
+    @classmethod
+    def from_config(cls, cfg):
+        init_kwargs = MaskFormer.from_config(cfg)
+        text_templates = build_text_prompt(cfg.MODEL.CLIP_ADAPTER)
+
+        clip_adapter = MaskFormerClipAdapter(
+            cfg.MODEL.CLIP_ADAPTER.CLIP_MODEL_NAME,
+            text_templates,
+            mask_fill=cfg.MODEL.CLIP_ADAPTER.MASK_FILL,
+            mask_expand_ratio=cfg.MODEL.CLIP_ADAPTER.MASK_EXPAND_RATIO,
+            mask_thr=cfg.MODEL.CLIP_ADAPTER.MASK_THR,
+            mask_matting=cfg.MODEL.CLIP_ADAPTER.MASK_MATTING,
+            region_resized=cfg.MODEL.CLIP_ADAPTER.REGION_RESIZED,
+            mask_prompt_depth=cfg.MODEL.CLIP_ADAPTER.MASK_PROMPT_DEPTH,
+            mask_prompt_fwd=cfg.MODEL.CLIP_ADAPTER.MASK_PROMPT_FWD,
+        )
+        init_kwargs["clip_adapter"] = clip_adapter
+        init_kwargs["clip_ensemble"] = cfg.MODEL.CLIP_ADAPTER.CLIP_ENSEMBLE
+        init_kwargs[
+            "clip_ensemble_weight"
+        ] = cfg.MODEL.CLIP_ADAPTER.CLIP_ENSEMBLE_WEIGHT
+
+        return init_kwargs
+
+    def forward(self, images, class_names, use_adapter=False):
+        height = images.shape[-2]
+        width = images.shape[-1]
+
+        images = (images.to(self.device) - self.pixel_mean) / self.pixel_std 
+
+        features = self.backbone(images)
+        outputs = self.sem_seg_head(features)
+
+        # Get the outputs using their method, which takes into account the class names (and gets the logits immediately)
+        # We can't do this in voxseg, because we want to build a representation of the embeddings in the env (so we have to argmax)
+        text_features = self.clip_adapter.get_text_features(class_names)
+        outputs["pred_logits"] = self.clip_adapter.get_sim_logits(
+            text_features, self.clip_adapter.normalize_feature(outputs["pred_logits"])
+        )
+
+        logits = outputs['pred_logits'].to(self.device)
+        segs = outputs['pred_masks'].to(self.device)
+
+        batch_class_probs = torch.zeros(len(images), len(class_names), height, width)
+
+        for i, (mask_cls, mask_pred, image) in enumerate(zip(logits, segs, images)):
+            
+            mask_pred_interpolated = sem_seg_postprocess(
+                mask_pred, (height, width), height, width
+            )
+
+            if use_adapter:
+                # Class scores: (num_classes, h, w)
+                class_scores, region = self.semantic_inference(mask_cls, mask_pred_interpolated, image, class_names)
+            else:
+                class_scores = torch.einsum("qc,qhw->chw", mask_cls, mask_pred_interpolated)
+
+                # Remove the non object embedding (maybe keep it for the future)
+                class_scores = class_scores[:-1]
+
+            class_probs = class_scores / class_scores.sum(dim=0)
+            batch_class_probs[i] = class_probs
+
+            breakpoint()
+
+        return batch_class_probs
     
+    def semantic_inference(self, mask_cls, mask_pred, image, class_names):
+            mask_cls = F.softmax(mask_cls, dim=-1)[..., :-1]
+            mask_pred = mask_pred.sigmoid()
+
+            regions = None
+            if self.clip_ensemble:
+                clip_cls, regions, valid_flag = self.clip_adapter(
+                    image, class_names, mask_pred, normalize=True
+                )
+                if clip_cls is None:
+                    clip_cls = torch.empty(0, mask_cls.shape[-1] + 1, device=self.device)
+                # softmax before index or after?
+                clip_cls = F.softmax(clip_cls[:, :-1], dim=-1)
+                if self.clip_ensemble_weight > 0:
+                    map_back_clip_cls = mask_cls.new_ones(mask_cls.shape)
+                    map_back_clip_cls[valid_flag] = clip_cls
+                    mask_cls = torch.pow(mask_cls, 1 - self.clip_ensemble_weight) * \
+                            torch.pow(map_back_clip_cls, self.clip_ensemble_weight)
+
+
+                else:
+                    # only clip model predictions are used
+                    mask_cls = clip_cls
+                    mask_pred = mask_pred[valid_flag]
+            
+            semseg = torch.einsum("qc,qhw->chw", mask_cls, mask_pred)
+            return semseg, regions
+
+    def interpolate_features(self, feature_map, new_height, new_width):
+        """
+        Inputs:
+            feature_map: torch.tensor (batch, network img height, network img width, feature size)
+        
+        Returns:
+            feature_map down or upsampled to have size (batch, new_height, new_width, feature_size)
+        """
+
+        input = feature_map.permute(0, 3, 1, 2)
+
+        # large-ish batch sizes (>7, for img dim 540x720) result in
+        # RuntimeError: upsample_nearest_nhwc only supports output tensors with less than INT_MAX elements
+        # this is a hacky workaround
+        if len(feature_map) > 7:  
+            batch, _, _, features = feature_map.size()
+            output = torch.zeros((batch, features, new_height, new_width), device=feature_map.device)
+            for i in range(len(input)): 
+                output[i] = F.interpolate(input[i][None], size=(new_height, new_width), mode='nearest').squeeze()
+            return output.permute(0,2, 3, 1)
+        else:
+            output = F.interpolate(input, size=(new_height, new_width), mode='nearest')
+            return output.permute(0,2, 3, 1)
+
+
+
+@META_ARCH_REGISTRY.register()
+class WSDemo(MaskFormer):
+    """
+    This class is loaded in as the model for forward pass classification
+    It is referenced in the config as "META_ARCHITECTURE: WSDemo"
+    """
+
+    @configurable
+    def __init__(
+        self,
+        *,
+        backbone: Backbone,
+        sem_seg_head: nn.Module,
+        clip_adapter: nn.Module,
+        criterion: nn.Module,
+        num_queries: int,
+        panoptic_on: bool,
+        object_mask_threshold: float,
+        overlap_threshold: float,
+        metadata,
+        size_divisibility: int,
+        sem_seg_postprocess_before_inference: bool,
+        clip_ensemble: bool,
+        clip_ensemble_weight: float,
+        pixel_mean: Tuple[float],
+        pixel_std: Tuple[float],
+    ):
+        """
+        Args:
+            backbone: a backbone module, must follow detectron2's backbone interface
+            sem_seg_head: a module that predicts semantic segmentation from backbone features
+            criterion: a module that defines the loss
+            clip_adapter: adapter for clip-based mask classification
+            num_queries: int, number of queries
+            panoptic_on: bool, whether to output panoptic segmentation prediction
+            object_mask_threshold: float, threshold to filter query based on classification score
+                for panoptic segmentation inference
+            overlap_threshold: overlap threshold used in general inference for panoptic segmentation
+            metadata: dataset meta, get `thing` and `stuff` category names for panoptic
+                segmentation inference
+            size_divisibility: Some backbones require the input height and width to be divisible by a
+                specific integer. We can use this to override such requirement.
+            sem_seg_postprocess_before_inference: whether to resize the prediction back
+                to original input size before semantic segmentation inference or after.
+                For high-resolution dataset like Mapillary, resizing predictions before
+                inference will cause OOM error.
+            pixel_mean, pixel_std: list or tuple with #channels element, representing
+                the per-channel mean and std to be used to normalize the input image
+        """
+        super().__init__(
+            backbone=backbone,
+            sem_seg_head=sem_seg_head,
+            criterion=criterion,
+            num_queries=num_queries,
+            panoptic_on=panoptic_on,
+            object_mask_threshold=object_mask_threshold,
+            overlap_threshold=overlap_threshold,
+            metadata=metadata,
+            size_divisibility=size_divisibility,
+            sem_seg_postprocess_before_inference=sem_seg_postprocess_before_inference,
+            pixel_mean=pixel_mean,
+            pixel_std=pixel_std,
+        )
+        self.clip_adapter: ClipAdapter = clip_adapter
+
+        self.clip_ensemble: bool = clip_ensemble
+        self.clip_ensemble_weight: float = clip_ensemble_weight
+
+    @classmethod
+    def from_config(cls, cfg):
+        init_kwargs = MaskFormer.from_config(cfg)
+        text_templates = build_text_prompt(cfg.MODEL.CLIP_ADAPTER)
+
+        clip_adapter = MaskFormerClipAdapter(
+            cfg.MODEL.CLIP_ADAPTER.CLIP_MODEL_NAME,
+            text_templates,
+            mask_fill=cfg.MODEL.CLIP_ADAPTER.MASK_FILL,
+            mask_expand_ratio=cfg.MODEL.CLIP_ADAPTER.MASK_EXPAND_RATIO,
+            mask_thr=cfg.MODEL.CLIP_ADAPTER.MASK_THR,
+            mask_matting=cfg.MODEL.CLIP_ADAPTER.MASK_MATTING,
+            region_resized=cfg.MODEL.CLIP_ADAPTER.REGION_RESIZED,
+            mask_prompt_depth=cfg.MODEL.CLIP_ADAPTER.MASK_PROMPT_DEPTH,
+            mask_prompt_fwd=cfg.MODEL.CLIP_ADAPTER.MASK_PROMPT_FWD,
+        )
+        init_kwargs["clip_adapter"] = clip_adapter
+        init_kwargs["clip_ensemble"] = cfg.MODEL.CLIP_ADAPTER.CLIP_ENSEMBLE
+        init_kwargs[
+            "clip_ensemble_weight"
+        ] = cfg.MODEL.CLIP_ADAPTER.CLIP_ENSEMBLE_WEIGHT
+
+        return init_kwargs
+
+    def forward(self, batched_images):
+        """
+        Args:
+            batched_images: torch.tensor containing the images (B, 3, H, W)
+        Returns:
+            list[dict]:
+                each dict has the results for one image. The dict contains the following keys:
+
+                * "sem_seg":
+                    A Tensor that represents the
+                    per-pixel segmentation prediced by the head.
+                    The prediction has shape KxHxW that represents the logits of
+                    each class for each pixel.
+                * "panoptic_seg":
+                    A tuple that represent panoptic output
+                    panoptic_seg (Tensor): of shape (height, width) where the values are ids for each segment.
+                    segments_info (list[dict]): Describe each segment in `panoptic_seg`.
+                        Each dict contains keys "id", "category_id", "isthing".
+        """
+
+        images = (batched_images.to(self.device) - self.pixel_mean) / self.pixel_std
+        features = self.backbone(images)
+        outputs = self.sem_seg_head(features)
+
+
+        return outputs
+
+
+    def demo_inference(self, mask_cls, mask_pred, image, class_names):
+        mask_cls = F.softmax(mask_cls, dim=-1)[..., :-1]
+        mask_pred = mask_pred.sigmoid()
+
+        regions = None
+        if self.clip_ensemble:
+            clip_cls, regions, valid_flag = self.clip_adapter(
+                image, class_names, mask_pred, normalize=True
+            )
+            if clip_cls is None:
+                clip_cls = torch.empty(0, mask_cls.shape[-1] + 1, device=self.device)
+            # softmax before index or after?
+            clip_cls = F.softmax(clip_cls[:, :-1], dim=-1)
+            if self.clip_ensemble_weight > 0:
+                map_back_clip_cls = mask_cls.new_ones(mask_cls.shape)
+                map_back_clip_cls[valid_flag] = clip_cls
+                mask_cls = torch.pow(mask_cls, 1 - self.clip_ensemble_weight) * \
+                           torch.pow(map_back_clip_cls, self.clip_ensemble_weight)
+
+            else:
+                # only clip model predictions are used
+                mask_cls = clip_cls
+                mask_pred = mask_pred[valid_flag]
+        bin_mask = mask_pred > self.clip_adapter.mask_thr
+        select_cls = torch.zeros(sum(valid_flag), mask_cls.shape[-1], device=self.device)
+        select_mask = torch.argmax(mask_cls, dim=0)
+        if len(class_names) == 2 and class_names[-1] == 'others':
+            select_mask = select_mask[:-1]
+        for idx in select_mask:
+            select_cls[idx] = mask_cls[idx]
+        semseg = torch.einsum("qc,qhw->chw", select_cls, bin_mask.float())
+        return semseg, regions

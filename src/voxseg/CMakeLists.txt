@@ -58,6 +58,7 @@ add_message_files(
    Classes.msg
    VoxelGrid.msg
    WorldInfo.msg
+   CustomChannelImage.msg
 
  )
 
@@ -66,6 +67,7 @@ add_service_files(
   DIRECTORY srv
   FILES
   VoxelComputation.srv
+  ImageSeg.srv
 
 )
 
