@@ -379,16 +379,21 @@ class OVTArch(MaskFormer):
             if use_adapter:
                 # Class scores: (num_classes, h, w)
                 class_scores, region = self.semantic_inference(mask_cls, mask_pred_interpolated, image, class_names)
+                class_probs = class_scores / class_scores.sum(dim=0)
+
             else:
+                
                 class_scores = torch.einsum("qc,qhw->chw", mask_cls, mask_pred_interpolated)
 
                 # Remove the non object embedding (maybe keep it for the future)
                 class_scores = class_scores[:-1]
 
-            class_probs = class_scores / class_scores.sum(dim=0)
-            batch_class_probs[i] = class_probs
+                # normalize, but since they seem to be log probs, also need to flip the negative
+                class_probs = 1 - (class_scores / class_scores.sum(dim=0))
 
-            breakpoint()
+            
+            
+            batch_class_probs[i] = class_probs
 
         return batch_class_probs
     

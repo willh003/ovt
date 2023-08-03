@@ -21,8 +21,37 @@ import torch.nn.functional as F
 
 from open_vocab_seg.ws_ovseg_model import WSImageEncoder
 
+from PIL import Image
+import numpy as np
 
-WINDOW_NAME = "OVSeg"
+def get_turbo_image(img, mask):
+    """
+    img: torch.tensor, (3, h, w) vals between 0,1
+    mask: torch.tensor, (h,w) vals between 0,256
+    returns: PIL Image
+    """
+    img_np = img.permute(1,2,0).cpu().numpy()
+    mask_np = mask.cpu().numpy()*255.0
+
+    color_map = cv2.applyColorMap(mask_np.astype(np.uint8), cv2.COLORMAP_TURBO)
+
+
+    # Overlay the color map on the original image
+    overlay = cv2.addWeighted(img_np.astype(np.uint8), 0.7, color_map, 0.3, 0)
+    output = Image.fromarray(overlay)
+
+    return output, Image.fromarray(color_map)
+
+def save_masks(images, probs, base_name):
+    for i, (image, prob_mask) in enumerate(zip(images, probs)):
+        
+        classifications = torch.argmax(prob_mask, dim=0)
+        classifications = classifications / classifications.max()
+        masked_overlay, mask = get_turbo_image(image, classifications)
+        masked_overlay.save(os.path.join('test_output', f'{base_name}_{i}.jpg'))
+        mask.save(os.path.join('test_output', f'{base_name}_mask_{i}.jpg'))
+        
+
 def load_images(directory):
 
     image_files = sorted([f for f in os.listdir(directory) if f.startswith('img_') and f.endswith('.jpg')])
@@ -45,13 +74,19 @@ def encoder_test(inp_folder, classes):
     encoder =  WSImageEncoder(config='configs/ovt.yaml')
 
     # t1 = time.time()
-    # adapt = encoder.call_with_classes(images, classes, use_adapter=True)
+    adapt = encoder.call_with_classes(images, classes, use_adapter=True)
     # print(f'time: {time.time() - t1}')
 
     no_adapt = encoder.call_with_classes(images, classes, use_adapter=False)
+    
+    
+    save_masks(images, no_adapt, "no_adapt")
+    save_masks(images, adapt, "adapt")
+    
+    
 
     # diff = adapt - no_adapt
-    breakpoint()
+    
 
 def quick_test(inp_file, classes):
     
@@ -67,7 +102,8 @@ if __name__=='__main__':
     # predictor = Lightweight()
     # predictor.run(['test_data/test_18/img_640.jpg'], ['excavator', 'other'])
    # quick_test('batch_test/cubesphereconetorus/test_0/img_260.jpg', ['shiny'])
-    encoder_test('test_data/site_test_2', ['equipment', 'ground'])
+    #encoder_test('test_data/site_test_2', ['equipment', 'ground'])
+    encoder_test('test_data/banana_apple', ['banana', 'apple', 'other'])
     #quick_test('test_data/site_test/img_600.jpg', )
 #quick_test()
 '''
