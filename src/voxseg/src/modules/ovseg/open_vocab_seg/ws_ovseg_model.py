@@ -30,11 +30,14 @@ from detectron2.utils.logger import setup_logger
 from detectron2.engine.defaults import DefaultPredictor
 
 
+# UNCOMMENT (and comment below) TO RUN FROM OVSEG ROOT
 from open_vocab_seg import add_ovseg_config
 from open_vocab_seg.utils import VisualizationDemo
 from open_vocab_seg.ovseg_model import OVSeg
 from open_vocab_seg.modeling.clip_adapter.utils import build_clip_model
 
+
+# UNCOMMENT (and comment above) TO RUN FROM ROS NODE
 # from modules.ovseg.open_vocab_seg.modeling.clip_adapter.utils import build_clip_model
 # from modules.ovseg.open_vocab_seg import add_ovseg_config
 # from modules.ovseg.open_vocab_seg.utils import VisualizationDemo
