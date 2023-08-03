@@ -59,7 +59,8 @@ add_message_files(
    VoxelGrid.msg
    WorldInfo.msg
    CustomChannelImage.msg
-
+   MaskAndTF.msg
+   ImageArray.msg
  )
 
 ## Generate services in the 'srv' folder

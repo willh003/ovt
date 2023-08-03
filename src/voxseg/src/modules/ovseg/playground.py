@@ -72,6 +72,7 @@ def load_images(directory):
 def encoder_test(inp_folder, classes):
     images = load_images(inp_folder)
     encoder =  WSImageEncoder(config='configs/ovt.yaml')
+    
 
     # t1 = time.time()
     adapt = encoder.call_with_classes(images, classes, use_adapter=True)

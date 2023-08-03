@@ -41,6 +41,7 @@ SERVER_NODE = 'voxseg_backend'
 CLIENT_NODE = 'voxseg_frontend'
 
 VOXEL_REQUEST_SERVICE = 'voxel_request'
+OVT_REQUEST_SERVICE = 'ovt_srv'
 
 RVIZ_NODE = 'voxseg_rviz'
 MARKER_TOPIC = 'voxseg_marker_topic'

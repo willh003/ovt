@@ -1,0 +1,5 @@
+<launch>
+  <node pkg="voxseg" type="ovt_node.py" name="server_node" output="screen"/>
+  <node pkg="voxseg" type="data_interface_node.py" name="data_node" output="screen"/>
+
+</launch>

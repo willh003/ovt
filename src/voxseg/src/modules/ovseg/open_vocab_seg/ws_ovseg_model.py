@@ -31,17 +31,17 @@ from detectron2.engine.defaults import DefaultPredictor
 
 
 # UNCOMMENT (and comment below) TO RUN FROM OVSEG ROOT
-from open_vocab_seg import add_ovseg_config
-from open_vocab_seg.utils import VisualizationDemo
-from open_vocab_seg.ovseg_model import OVSeg
-from open_vocab_seg.modeling.clip_adapter.utils import build_clip_model
+# from open_vocab_seg import add_ovseg_config
+# from open_vocab_seg.utils import VisualizationDemo
+# from open_vocab_seg.ovseg_model import OVSeg
+# from open_vocab_seg.modeling.clip_adapter.utils import build_clip_model
 
 
 # UNCOMMENT (and comment above) TO RUN FROM ROS NODE
-# from modules.ovseg.open_vocab_seg.modeling.clip_adapter.utils import build_clip_model
-# from modules.ovseg.open_vocab_seg import add_ovseg_config
-# from modules.ovseg.open_vocab_seg.utils import VisualizationDemo
-# from modules.ovseg.open_vocab_seg.ovseg_model import OVSeg
+from modules.ovseg.open_vocab_seg.modeling.clip_adapter.utils import build_clip_model
+from modules.ovseg.open_vocab_seg import add_ovseg_config
+from modules.ovseg.open_vocab_seg.utils import VisualizationDemo
+from modules.ovseg.open_vocab_seg.ovseg_model import OVSeg
 
 
 class WSImageEncoder(DefaultPredictor):
@@ -111,7 +111,7 @@ class WSImageEncoder(DefaultPredictor):
             predictions = self.model(images)
             return predictions
         
-    def call_with_classes(self, images, classes, use_adapter=False):
+    def call_with_classes(self, images, classes, use_adapter=False) -> torch.tensor:
         """
         Runs the model on a batch of images, and uses the clip adaptor for classes
             images: torch.tensor, (batch, channels, height, width)
