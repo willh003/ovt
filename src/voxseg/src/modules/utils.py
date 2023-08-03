@@ -23,89 +23,7 @@ from std_msgs.msg import String
 import json
 import rospy
 
-def get_cam_msg(extrinsics):
-    """
-    extrinsics: a numpy array containing camera extrinsics, size (4,4)
-    """
-    return np.reshape(extrinsics, (16,)).tolist()
-
-def get_image_msg(image, timestamp) -> RosImage:
-    """
-    Inputs:
-        image: a numpy array containing rgb image data, shape (h,w,c)
-    """
-    h,w,c = image.shape
-    img_msg = RosImage()
-    img_msg.width = w
-    img_msg.height = h
-    img_msg.encoding = "rgb8"  # Set the encoding to match your image format
-    img_msg.data = image.tobytes()
-    img_msg.header.stamp = timestamp
-    img_msg.header.frame_id = 'img_frame'
-
-    return img_msg
-
-
-def get_depth_msg(depth_map, timestamp) -> Image:
-    """
-    depth_map: a numpy array containing depth data, size (h,w)
-    """
-    h,w = depth_map.shape
-    depth_msg = RosImage()
-    depth_msg.height = h
-    depth_msg.width = w
-    depth_msg.encoding = '32FC1'  # Assuming single-channel depth map
-    depth_msg.step = w * 4  # Size of each row in bytes
-    depth_msg.data = depth_map.astype(np.float32).tobytes()
-    depth_msg.header.stamp = timestamp
-    depth_msg.header.frame_id = 'depth_frame'
-
-    return depth_msg
-
-def load_images(directory):
-    """
-    Returns: 
-        images: list[np.ndarray, shape (h, w, c)]
-
-        depth: torch.tensor (b, 1, h, w)
-
-        cam_locs: torch.tensor (b, 4, 4)
-
-        (for each file titled img_*, depth_*, cam_loc_* in directory)
-    """
-    image_files = sorted([f for f in os.listdir(directory) if f.startswith('img_') and f.endswith('.jpg')])
-    depth_files = sorted([f for f in os.listdir(directory) if f.startswith('depth_') and f.endswith('.pt')])
-    cam_loc_files = sorted([f for f in os.listdir(directory) if f.startswith('cam_loc_') and f.endswith('.pt')])
-
-    images = []
-    depth_tensors = []
-    cam_loc_tensors = []
-
-    for img_file, depth_file, cam_loc_file in zip(image_files, depth_files, cam_loc_files):
-        # Load image into PIL
-        img_path = os.path.join(directory, img_file)
-        image = read_image(img_path, format="BGR")
-        images.append(image)
-
-        # Load depth tensor
-        depth_path = os.path.join(directory, depth_file)
-        depth_tensor = torch.load(depth_path)
-        depth_tensors.append(depth_tensor)
-
-        # Load camera location tensor
-        cam_loc_path = os.path.join(directory, cam_loc_file)
-        cam_loc_tensor = torch.load(cam_loc_path)
-        cam_loc_tensors.append(cam_loc_tensor)
-
-    if len(depth_tensors) == 1:
-        depths = depth_tensors[0][None]
-        cam_locs = cam_loc_tensors[0][None]
-    else:
-        # Convert the lists into a single tensor
-        depths = torch.stack(depth_tensors)
-        cam_locs = torch.stack(cam_loc_tensors)
-
-    return images, depths, cam_locs
+################### Voxel Projection ####################
 
 def update_grids_aligned(feature_map, voxels, feature_grid, grid_count):
     """
@@ -219,43 +137,6 @@ def get_all_pixels(numrows, numcols, device='cuda'):
     homo_pixels = torch.concat((oned_pixels,ones),1).to(device)
     return homo_pixels
 
-def expand_to_batch_size(tensor, batches):
-    """
-    Inputs:
-        tensor: shape S
-
-        batches: int
-
-    Returns:
-        torch.tensor, of shape (batches, *S)
-    """
-
-    return torch.repeat_interleave(tensor[None], batches, dim=0) 
-
-def unique_with_indices(x, dim=None):
-    """Unique elements of x and indices of those unique elements
-    https://github.com/pytorch/pytorch/issues/36748#issuecomment-619514810
-
-    e.g.
-
-    unique(tensor([
-        [1, 2, 3],
-        [1, 2, 4],
-        [1, 2, 3],
-        [1, 2, 5]
-    ]), dim=0)
-    => (tensor([[1, 2, 3],
-                [1, 2, 4],
-                [1, 2, 5]]),
-        tensor([0, 1, 3]))
-    """
-    unique, inverse = torch.unique(
-        x, sorted=True, return_inverse=True, dim=dim)
-    perm = torch.arange(inverse.size(0), dtype=inverse.dtype,
-                        device=inverse.device)
-    inverse, perm = inverse.flip([0]), perm.flip([0])
-    return unique, inverse.new_empty(unique.size(0)).scatter_(0, inverse, perm)
-
 def align_depth_to_rgb(rgb, K_rgb, T_rgb, d, K_d, T_d):
     """
     NOTE: currently does not support batching, because this would result in jagged arrays
@@ -357,7 +238,86 @@ def unproject(intrinsics, extrinsics, pixels, depth, return_homogenous=False):
 
     return all_wld_pts
 
+############### Tensor Manipulation #################
+
+def expand_to_batch_size(tensor, batches):
+    """
+    Inputs:
+        tensor: shape S
+
+        batches: int
+
+    Returns:
+        torch.tensor, of shape (batches, *S)
+    """
+
+    return torch.repeat_interleave(tensor[None], batches, dim=0) 
+
+def unique_with_indices(x, dim=None):
+    """Unique elements of x and indices of those unique elements
+    https://github.com/pytorch/pytorch/issues/36748#issuecomment-619514810
+
+    e.g.
+
+    unique(tensor([
+        [1, 2, 3],
+        [1, 2, 4],
+        [1, 2, 3],
+        [1, 2, 5]
+    ]), dim=0)
+    => (tensor([[1, 2, 3],
+                [1, 2, 4],
+                [1, 2, 5]]),
+        tensor([0, 1, 3]))
+    """
+    unique, inverse = torch.unique(
+        x, sorted=True, return_inverse=True, dim=dim)
+    perm = torch.arange(inverse.size(0), dtype=inverse.dtype,
+                        device=inverse.device)
+    inverse, perm = inverse.flip([0]), perm.flip([0])
+    return unique, inverse.new_empty(unique.size(0)).scatter_(0, inverse, perm)
+
 ############### ROS ##################
+
+def get_cam_msg(extrinsics):
+    """
+    extrinsics: a numpy array containing camera extrinsics, size (4,4)
+    """
+    return np.reshape(extrinsics, (16,)).tolist()
+
+def get_image_msg(image, timestamp) -> RosImage:
+    """
+    Inputs:
+        image: a numpy array containing rgb image data, shape (h,w,c)
+    """
+    h,w,c = image.shape
+    img_msg = RosImage()
+    img_msg.width = w
+    img_msg.height = h
+    img_msg.encoding = "rgb8"  # Set the encoding to match your image format
+    img_msg.data = image.tobytes()
+    img_msg.header.stamp = timestamp
+    img_msg.header.frame_id = 'img_frame'
+
+    return img_msg
+
+
+def get_depth_msg(depth_map, timestamp) -> Image:
+    """
+    depth_map: a numpy array containing depth data, size (h,w)
+    """
+    h,w = depth_map.shape
+    depth_msg = RosImage()
+    depth_msg.height = h
+    depth_msg.width = w
+    depth_msg.encoding = '32FC1'  # Assuming single-channel depth map
+    depth_msg.step = w * 4  # Size of each row in bytes
+    depth_msg.data = depth_map.astype(np.float32).tobytes()
+    depth_msg.header.stamp = timestamp
+    depth_msg.header.frame_id = 'depth_frame'
+
+    return depth_msg
+
 
 def convert_dict_to_dictionary_array(dictionary):
 
@@ -400,6 +360,54 @@ def voxels_from_srv(msg: VoxelComputationResponse):
     grid_dim = torch.as_tensor(tuple(voxels.size()))
     world_dim = grid_dim / resolutions
     return voxels, world_dim
+
+
+################ Data Saving ##################
+
+def load_images(directory):
+    """
+    Returns: 
+        images: list[np.ndarray, shape (h, w, c)]
+
+        depth: torch.tensor (b, 1, h, w)
+
+        cam_locs: torch.tensor (b, 4, 4)
+
+        (for each file titled img_*, depth_*, cam_loc_* in directory)
+    """
+    image_files = sorted([f for f in os.listdir(directory) if f.startswith('img_') and f.endswith('.jpg')])
+    depth_files = sorted([f for f in os.listdir(directory) if f.startswith('depth_') and f.endswith('.pt')])
+    cam_loc_files = sorted([f for f in os.listdir(directory) if f.startswith('cam_loc_') and f.endswith('.pt')])
+
+    images = []
+    depth_tensors = []
+    cam_loc_tensors = []
+
+    for img_file, depth_file, cam_loc_file in zip(image_files, depth_files, cam_loc_files):
+        # Load image into PIL
+        img_path = os.path.join(directory, img_file)
+        image = read_image(img_path, format="BGR")
+        images.append(image)
+
+        # Load depth tensor
+        depth_path = os.path.join(directory, depth_file)
+        depth_tensor = torch.load(depth_path)
+        depth_tensors.append(depth_tensor)
+
+        # Load camera location tensor
+        cam_loc_path = os.path.join(directory, cam_loc_file)
+        cam_loc_tensor = torch.load(cam_loc_path)
+        cam_loc_tensors.append(cam_loc_tensor)
+
+    if len(depth_tensors) == 1:
+        depths = depth_tensors[0][None]
+        cam_locs = cam_loc_tensors[0][None]
+    else:
+        # Convert the lists into a single tensor
+        depths = torch.stack(depth_tensors)
+        cam_locs = torch.stack(cam_loc_tensors)
+
+    return images, depths, cam_locs
 
 ################ Visualization ################
 

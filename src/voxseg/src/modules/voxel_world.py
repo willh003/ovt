@@ -308,7 +308,8 @@ class VoxelWorld:
         print(f'Clip inference and similarity calculation time: {time.time()- t1}')
 
         return all_voxel_groups_reshaped
-        
+
+
 
 def batch_test():
     #classes = ['ground', 'rock', 'brick', 'fire hydrant', 'heavy machinery']

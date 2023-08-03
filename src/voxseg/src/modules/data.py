@@ -156,6 +156,7 @@ class UnalignedData(BackendData):
 
     def add_depth_image(self, image, depths, rgb_extr, depth_extr):
         super().add_depth_image(image, depths, rgb_extr)
+
         self.recent_depth_extr.append(depth_extr)
         self.depth_extrinsics.append(depth_extr)
         
@@ -181,7 +182,7 @@ class UnalignedData(BackendData):
         return image_tensor, depth_tensor, rgb_extr_tensor, depth_extr_tensor
 
     def get_tensors(self, world):
-        tensors = super().get_tensors(world)
+        
         if tensors is not None:
             image_tensor, depth_tensor, rgb_extr_tensor = tensors
         else:
@@ -189,5 +190,8 @@ class UnalignedData(BackendData):
 
         depth_extr_np = np.stack(self.recent_depth_extr)
         depth_extr_tensor = torch.from_numpy(depth_extr_np).float().to(self.device)
+
+        tensors = super().get_tensors(world) # MUST HAPPEN AFTER (spooky inheritance stuff)
+        self.reset_buffers()
 
         return image_tensor, depth_tensor, rgb_extr_tensor, depth_extr_tensor
