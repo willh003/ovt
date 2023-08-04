@@ -44,7 +44,6 @@ class OVTServer:
         images = torch_from_img_array_msg(req.images).float().to(DEVICE)
         class_probs = self.encoder.call_with_classes(images, self.classes, use_adapter=False)
 
-        breakpoint()
         class_probs_msg = []
         for img in class_probs:
             c, h, w = img.size()

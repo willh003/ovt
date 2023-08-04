@@ -210,7 +210,7 @@ class OVTDataInterface:
         if BATCH_SIZE:
             self.buffer = TriggerBuffer(maxlen = BATCH_SIZE, fn=self.request_computation,  clear_on_trigger=True)
         else: 
-            self.buffer = TriggerBuffer(maxlen = 2, fn=self.request_computation, clear_on_trigger=True)
+            self.buffer = TriggerBuffer(maxlen = 5, fn=self.request_computation, clear_on_trigger=True)
 
         rospy.spin()
             
