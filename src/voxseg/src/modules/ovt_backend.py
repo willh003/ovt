@@ -30,18 +30,16 @@ class OVTServer:
    
     def _handle_compute_request(self, req):
         # Update frpom the most recent tensors 
-        breakpoint()
         images_msg = list(req.images)
         
         classes = [str(c) for c in req.classes]
         
         images = torch_from_img_array_msg(images_msg).float().to(self.device)
-        breakpoint()
         class_probs = self.encoder.call_with_classes(images, classes, use_adapter=False)
 
-        breakpoint()
         all_probs_msg = []
         bridge = CvBridge()
+        transform = ToPILImage()
         for i, multi_channel_probs in enumerate(class_probs):
             c, _, _ = multi_channel_probs.size()
 
@@ -50,17 +48,16 @@ class OVTServer:
             for j in range(c):
                 channel_probs = multi_channel_probs[j]
 
-                transform = ToPILImage()
-                channel_probs_image = transform(channel_probs.unsqueeze(0)) 
-                probs_img_msg = bridge.cv2_to_imgmsg(channel_probs_image, header=corresponding_image_msg.header)
+                
+                
+                probs_img_msg = bridge.cv2_to_imgmsg(channel_probs.numpy(), header=corresponding_image_msg.header)
                 
                 separate_channel_probs.append(probs_img_msg)
 
             probs_msg = ImageArray(images = separate_channel_probs)
             all_probs_msg.append(probs_msg)
 
-
-        response = ImageSegResponse(pixel_probs = all_probs_msg)
+        response = ImageSegResponse(prob_images = all_probs_msg)
 
         return response
 

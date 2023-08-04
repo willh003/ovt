@@ -251,11 +251,9 @@ class OVTDataInterface:
         try:
             compute_data_service = rospy.ServiceProxy(self.ovt_request_service, ImageSeg)
             img_list =[img_msg for img_msg, _ in buffer_freeze]
-            breakpoint()
             pixel_probs_srv = compute_data_service(img_list, [String(data=c) for c in self.classes])
-            pixel_probs_list = list(pixel_probs_srv.prob_images)
 
-            self.publish_probs_and_tfs(pixel_probs_list, buffer_freeze)
+            self.publish_probs_and_tfs(pixel_probs_srv.prob_images, buffer_freeze)
 
         except rospy.ServiceException as e:
             rospy.logerr("Service call failed: %s", e)
@@ -270,8 +268,9 @@ class OVTDataInterface:
         Publishes a MaskAndTF msg with self.mask_tf_pub
         
         """
-        for pixel_probs, (_, cam_info_msg) in zip(pixel_probs_list, buffer):
+        for pixel_probs_msg, (_, cam_info_msg) in zip(pixel_probs_list, buffer):
             self.cam_info_pub.publish(cam_info_msg)
+            pixel_probs = pixel_probs_msg.images
             for i, prob_image_msg in enumerate(list(pixel_probs)):
                 current_class = self.classes[i]
                 pub = self.class_pub_register[current_class]
