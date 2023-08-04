@@ -1,6 +1,7 @@
 # ImageSeg.srv
-sensor_msgs/Image[] images
-# Return float array containing class probabilities for each pixel in the image, for each image. 
-# num_channels should be equal to the number of classes
+sensor_msgs/CompressedImage[] images
+std_msgs/String[] classes
 ---
-CustomChannelImage[] pixel_probs
+# the nth ImageArray in prob_images is a set of c monocular images containing
+# the probabilities for the c classes
+voxseg/ImageArray[] prob_images

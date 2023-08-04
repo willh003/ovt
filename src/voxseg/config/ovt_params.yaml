@@ -1,0 +1,19 @@
+# User
+DEVICE: cuda
+BATCH_SIZE: 2
+CLASSES:
+  - traversable
+  - untraversable
+  - obstacle
+
+# ROS
+CLASS_TOPIC: classes_topic
+IMAGE_TOPIC: image_topic
+RESET_TOPIC: reset_topic
+CHANGE_BUFFER_SIZE_TOPIC: change_buffer_size
+CHANGE_RATE_TOPIC: change_rate
+
+REQUEST_SERVICE: request_computation
+
+SERVER_NODE: backend
+DATA_INTERFACE_NODE: data_interface

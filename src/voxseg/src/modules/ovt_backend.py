@@ -1,37 +1,27 @@
 import rospy
 
-from voxseg.msg import Classes, CustomChannelImage
+from voxseg.msg import ImageArray
 from voxseg.srv import ImageSeg, ImageSegResponse
 
-import numpy as np
-import json
-import torch
+from torchvision.transforms import ToPILImage
 
-from modules.config import *
+from modules.voxseg_root_dir import VOXSEG_ROOT_DIR
 from modules.utils import *
 from modules.ovseg.open_vocab_seg.ws_ovseg_model import WSImageEncoder
-
-
-
 
 class OVTServer:
     def __init__(self):
         """
-        Subscribes to the class name topic
-
-        Attaches to seg request service
+        Only exists to perform computations. Does not handle any data manipulation or storage
         """
-        use_prompts = False
-        self.classes = ['Traversable', 'Untraversable', 'Obstacle']
-        self.prompts = {}
-        self.groups = {}
-        self.use_prompts = use_prompts
+        self.server_node = rospy.get_param('/ovt/SERVER_NODE')
+        self.ovt_request_service = rospy.get_param('/ovt/REQUEST_SERVICE')
+        self.device = rospy.get_param('ovt/DEVICE')
 
         self.encoder = WSImageEncoder(VOXSEG_ROOT_DIR, config='configs/ovt.yaml')
         
-        rospy.init_node(SERVER_NODE, anonymous=True)
-        rospy.Subscriber(CLASS_TOPIC, Classes, self._class_name_callback)
-        rospy.Service(OVT_REQUEST_SERVICE, ImageSeg, self._handle_compute_request)
+        rospy.init_node(self.server_node, anonymous=True)
+        rospy.Service(self.ovt_request_service, ImageSeg, self._handle_compute_request)
     
         print('Backend Has Been Initialized')
 
@@ -40,31 +30,39 @@ class OVTServer:
    
     def _handle_compute_request(self, req):
         # Update frpom the most recent tensors 
+        breakpoint()
+        images_msg = list(req.images)
+        
+        classes = [str(c) for c in req.classes]
+        
+        images = torch_from_img_array_msg(images_msg).float().to(self.device)
+        breakpoint()
+        class_probs = self.encoder.call_with_classes(images, classes, use_adapter=False)
 
-        images = torch_from_img_array_msg(req.images).float().to(DEVICE)
-        class_probs = self.encoder.call_with_classes(images, self.classes, use_adapter=False)
+        breakpoint()
+        all_probs_msg = []
+        bridge = CvBridge()
+        for i, multi_channel_probs in enumerate(class_probs):
+            c, _, _ = multi_channel_probs.size()
 
-        class_probs_msg = []
-        for img in class_probs:
-            c, h, w = img.size()
+            corresponding_image_msg = images_msg[i]
+            separate_channel_probs = []
+            for j in range(c):
+                channel_probs = multi_channel_probs[j]
 
-            flattened_data = img.float().flatten().numpy()
-            img_msg = CustomChannelImage(data=flattened_data, height=h, width=w, num_channels=c)
-            class_probs_msg.append(img_msg)
+                transform = ToPILImage()
+                channel_probs_image = transform(channel_probs.unsqueeze(0)) 
+                probs_img_msg = bridge.cv2_to_imgmsg(channel_probs_image, header=corresponding_image_msg.header)
+                
+                separate_channel_probs.append(probs_img_msg)
 
-        response = ImageSegResponse(pixel_probs = class_probs_msg)
+            probs_msg = ImageArray(images = separate_channel_probs)
+            all_probs_msg.append(probs_msg)
+
+
+        response = ImageSegResponse(pixel_probs = all_probs_msg)
 
         return response
 
-    def _class_name_callback(self, msg):
 
-        prompts = convert_dictionary_array_to_dict(msg.prompts)
-        groups = convert_dictionary_array_to_dict(msg.groups)
-
-        self.classes = list(msg.classes)
-        self.prompts = prompts
-        self.groups = groups
-        self.use_prompts = bool(msg.use_prompts)
-
-        print(f'Classes recieved: {self.classes}')
 

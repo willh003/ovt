@@ -1,6 +1,5 @@
 # MasksAndTF
-# Contains segment masks plus camera extrinsics/intrinsics 
+# Contains segment mask plus camera extrinsics/intrinsics 
 # (everything needed for height map projection)
-voxseg/CustomChannelImage image_class_probs
-float64[16] extrinsics
-float64[16] intrinsics
+sensor_msgs/Image class_probs
+sensor_msgs/CameraInfo cam_info

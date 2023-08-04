@@ -371,9 +371,9 @@ def get_depth_msg(depth_map, timestamp) -> Image:
 
     return depth_msg
 
-def decode_image_msg(image_msg, bridge):
+def decode_compressed_image_msg(image_msg, bridge):
 
-    img = bridge.imgmsg_to_cv2(image_msg, desired_encoding="passthrough")
+    img = bridge.compressed_imgmsg_to_cv2(image_msg, desired_encoding="passthrough")
     np_image = np.array(img)
     np_image = np_image[:, :, ::-1] # convert to BGR
     np_image = np.moveaxis(np_image, -1, 0) # convert to 3,H,W
@@ -387,16 +387,15 @@ def torch_from_img_array_msg(images):
         torch tensor, shape (B, 3, h, w), containing all the images
     """
     
-    h = int(images[0].height) 
-    w = int(images[0].width)
+
     bridge = CvBridge()
 
-    all_images = np.zeros((len(images), 3, h, w))
+    all_images = []
     for i, image_msg in enumerate(images):
         
-        all_images[i] = decode_image_msg(image_msg, bridge)
+        all_images.append(decode_compressed_image_msg(image_msg, bridge))
 
-    return torch.from_numpy(all_images)
+    return torch.from_numpy(np.stack(all_images))
 
 def convert_dict_to_dictionary_array(dictionary):
 

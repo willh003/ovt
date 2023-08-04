@@ -1,23 +1,25 @@
 import rospy
 from rospy import Publisher
 from rospy import Subscriber as RospySubscriber
-from sensor_msgs.msg import CompressedImage, Image
-from tf2_msgs.msg import TFMessage
-from message_filters import ApproximateTimeSynchronizer
-from message_filters import Subscriber as SyncedSubscriber
+
 import cv2
 from cv_bridge import CvBridge, CvBridgeError
-import numpy as np
-from modules.data import UnalignedData
-from modules.config import *
-from modules.utils import *
 
+from sensor_msgs.msg import CompressedImage, Image, CameraInfo
+from tf2_msgs.msg import TFMessage
 from geometry_msgs.msg import TransformStamped 
 from std_msgs.msg import Int32, Float32
-from voxseg.msg import DepthImageInfo, MaskAndTF, ImageArray, CustomChannelImage
+from voxseg.msg import DepthImageInfo, Classes, ImageArray
 from voxseg.srv import ImageSeg
+
+from message_filters import ApproximateTimeSynchronizer
+from message_filters import Subscriber as SyncedSubscriber
+
+import numpy as np
+
+from modules.utils import *
+from modules.real_data_cfg import IMAGE_TOPIC
 from modules.utils import get_depth_msg, get_image_msg, get_cam_msg
-import yaml
 
 
 # Method cutout from Wild Visual Navigation--------------------#
@@ -49,15 +51,17 @@ def pose_of_tf(tf : TransformStamped) -> np.ndarray:
     return np.array([tx,ty,tz,qx,qy,qz,qw])
 
 
-DATA_INTERFACE_NODE = 'voxseg_data_interface'
+
 class RobotDataInterface:
     def __init__(self):
+
+
         self.bridge = CvBridge()
 
         self.tick = 0
         self.rate = 50
         
-        rospy.init_node(DATA_INTERFACE_NODE)
+        rospy.init_node(self.data_interface_node)
 
         # TODO: Pull topic names from some config
 
@@ -179,42 +183,120 @@ class RobotDataInterface:
 
 class OVTDataInterface:
     def __init__(self):
+        """
+        For now, you will only be able to define exactly three classes
+        This is because each needs its own layer in elevation_mapping_cupy, which has a separate yaml
+        """
+
+
+        self.data_interface_node = rospy.get_param('/ovt/DATA_INTERFACE_NODE')
+        self.image_topic = rospy.get_param('/ovt/IMAGE_TOPIC')
+        self.class_topic = rospy.get_param('/ovt/CLASS_TOPIC')
+        self.ovt_request_service = rospy.get_param('/ovt/REQUEST_SERVICE')
+        self.batch_size = rospy.get_param('/ovt/BATCH_SIZE')
+        self.change_rate_topic = rospy.get_param('/ovt/CHANGE_RATE_TOPIC')
+        self.change_buffer_size_topic = rospy.get_param('/ovt/CHANGE_BUFFER_SIZE_TOPIC')
+
+
         self.bridge = CvBridge()
 
         self.tick = 0
         self.rate = 50
+        self.classes = list(rospy.get_param('/ovt/CLASSES'))
         
-        rospy.init_node(DATA_INTERFACE_NODE)
-        self.tf_main_sub = RospySubscriber("/tf", TFMessage, callback=self.publish_tf_list_to_specific_tfs)
-        self.change_rate_sub = RospySubscriber("ovt_change_rate", Float32, callback=self.change_rate)
-        self.change_buffer_size_sub = RospySubscriber("ovt_change_buffer_size", Int32, callback = self.change_buffer_size)
+        # self.buffer contains tuples of (RosImage, CameraInfo representing camera for that image)
+        self.buffer = TriggerBuffer(maxlen = self.batch_size, fn=self.request_computation,  clear_on_trigger=True)
 
+        rospy.init_node(self.data_interface_node)
 
-        # Cannot just use tf_sub as it has no header...
-        # instead we need to add an intermediate sub/pub trio.         self.tf_odom_pub = Publisher("/tf_odom", TransformStamped, queue_size=10) # NOTE: Arbitrary number
-        self.tf_rgb_pub = Publisher("/tf_rgb", TransformStamped, queue_size=10)
-        self.tf_odom_pub = Publisher("/tf_odom", TransformStamped, queue_size=10)
-        self.tf_rgb_sub = SyncedSubscriber("/tf_rgb", TransformStamped)
-        self.tf_odom_sub = SyncedSubscriber("/tf_odom", TransformStamped)
+        # User Input Subscriptions
+        RospySubscriber(self.change_rate_topic, Float32, callback=self.change_rate)
+        RospySubscriber(self.change_buffer_size_topic, Int32, callback = self.change_buffer_size)
+        rospy.Subscriber(self.class_topic, Classes, self.class_name_callback)
+
+        # Elevation Mapping Plugin Publishers
+        self.c1_probs_pub = Publisher("/ovt/c1_probs", RosImage, queue_size=1000)
+        self.c2_probs_pub = Publisher("/ovt/c2_probs", RosImage, queue_size=1000)
+        self.c3_probs_pub = Publisher("/ovt/c3_probs", RosImage, queue_size=1000)
+        self.cam_info_pub = Publisher("/ovt/camera_info", CameraInfo, queue_size=1000)
+
+        self.class_pub_register = {self.classes[0]: self.c1_probs_pub, 
+                                   self.classes[1]: self.c2_probs_pub, 
+                                   self.classes[2]: self.c3_probs_pub}
+
+        # Robot Input Subscriptions
+        self.cam_info_sub = SyncedSubscriber('/wide_angle_camera_front/camera_info', CameraInfo)
         self.rgb_sub = SyncedSubscriber("/wide_angle_camera_front/image_color_rect/compressed", CompressedImage)
-
-        # Sends to elevation mapping
-        self.mask_tf_pub = Publisher("/ovt_mask_tf", MaskAndTF, queue_size=10)
-        
-        # Synchronize the topics
-        ats = ApproximateTimeSynchronizer([self.rgb_sub,self.tf_odom_sub, self.tf_rgb_sub], 
+        ats = ApproximateTimeSynchronizer([self.rgb_sub, self.cam_info_sub], 
                                            slop=0.1, queue_size=10) # NOTE: 0.1 default, 10 Arbitrary number
-        ats.registerCallback(self.callback)
-
-        # self.buffer contains tuples of (np array representing image, np array representing rgb camera global transform)
-        if BATCH_SIZE:
-            self.buffer = TriggerBuffer(maxlen = BATCH_SIZE, fn=self.request_computation,  clear_on_trigger=True)
-        else: 
-            self.buffer = TriggerBuffer(maxlen = 5, fn=self.request_computation, clear_on_trigger=True)
-
+        ats.registerCallback(self.image_callback)
+        
         rospy.spin()
             
+
+    def request_computation(self, buffer):
+        """
+        This is bound to the trigger buffer, so it is a function on buffer
+
+        Buffer contains tuples of images and extrinsics
+
+        Inputs:
+            images: numpy array of images, shape (B, 3, H, W)
+            
+            tfs: numpy array of tfs, shape (B, 4, 4)
+        """
+        buffer_freeze = list(buffer).copy()
+        
+        rospy.wait_for_service(self.ovt_request_service)
+        try:
+            compute_data_service = rospy.ServiceProxy(self.ovt_request_service, ImageSeg)
+            img_list =[img_msg for img_msg, _ in buffer_freeze]
+            breakpoint()
+            pixel_probs_srv = compute_data_service(img_list, [String(data=c) for c in self.classes])
+            pixel_probs_list = list(pixel_probs_srv.prob_images)
+
+            self.publish_probs_and_tfs(pixel_probs_list, buffer_freeze)
+
+        except rospy.ServiceException as e:
+            rospy.logerr("Service call failed: %s", e)
+            return None
+
+    def publish_probs_and_tfs(self, pixel_probs_list, buffer):
+        """
+        Inputs:
+            pixel_probs: A list of length n containing ImageArray[c] objects, where c is the number of classes
+            buffer: a TriggerBuffer of length n
+
+        Publishes a MaskAndTF msg with self.mask_tf_pub
+        
+        """
+        for pixel_probs, (_, cam_info_msg) in zip(pixel_probs_list, buffer):
+            self.cam_info_pub.publish(cam_info_msg)
+            for i, prob_image_msg in enumerate(list(pixel_probs)):
+                current_class = self.classes[i]
+                pub = self.class_pub_register[current_class]
+                pub.publish(prob_image_msg)
+        
+
+    def image_callback(self,
+                 input_rgb_image: CompressedImage, 
+                 camera_info: CameraInfo):
+        self.tick += 1
+        if self.tick % self.rate != 0:
+            return
+
+        try:
+            self.buffer.append((input_rgb_image, camera_info))
+            print(len(self.buffer))
+            
+        except Exception as e:
+            # Consider adding some error logging here
+            rospy.logerr(f"Error processing images: {str(e)}")
     
+    def class_name_callback(self, msg):
+        classes = list(msg.classes)
+        print(f'Classes recieved: {classes}')
+
     def change_rate(self, msg):
         new_rate = float(msg.data)
         self.rate = new_rate
@@ -232,109 +314,6 @@ class OVTDataInterface:
         if new_size < len(self.buffer):
             rospy.logwarn('Warning: decreased buffer size, resulting in lost data')
 
-    def get_arrays_from_buffer(self, buffer):
-        all_images = []
-        all_tfs = []
-
-        for img, tf in buffer:
-            all_images.append(img)
-            all_tfs.append(tf)
-
-        return np.stack(all_images), np.stack(all_tfs)
-
-    def request_computation(self, buffer):
-        """
-        This is bound to the trigger buffer, so it is a function on buffer
-
-        Buffer contains tuples of images and extrinsics
-
-        Inputs:
-            images: numpy array of images, shape (B, 3, H, W)
-            
-            tfs: numpy array of tfs, shape (B, 4, 4)
-        """
-        
-        images, tfs = self.get_arrays_from_buffer(buffer)
-
-        image_arr_msg = []
-        for image in images:
-            image_msg = get_image_msg(image)
-            image_arr_msg.append(image_msg)
-
-        rospy.wait_for_service(OVT_REQUEST_SERVICE)
-        try:
-            compute_data_service = rospy.ServiceProxy(OVT_REQUEST_SERVICE, ImageSeg)
-            pixel_probs_srv = compute_data_service(image_arr_msg)
-            pixel_probs_msg = pixel_probs_srv.pixel_probs
-
-            self.publish_probs_and_tfs(pixel_probs_msg, tfs)
-        except rospy.ServiceException as e:
-            rospy.logerr("Service call failed: %s", e)
-            return None
-
-    def publish_probs_and_tfs(self, pixel_probs, tfs):
-        """
-        given pixel_probs, publish a MaskAndTF msg with self.mask_tf_pub
-        
-        the tfs should come from iterating over the tfs corresponding to pixel_probs
-            
-            - note: this will probably mean we need to create a copy of the buffer and freeze it
-            when the request is made
-        """
-        for pixel_prob, tf in zip(pixel_probs, tfs):
-            p_tf_msg = MaskAndTF()
-            rgb_tf_msg = get_cam_msg(tf.flatten())
-            p_tf_msg.extrinsics = rgb_tf_msg
-            p_tf_msg.image_class_probs = pixel_prob
-            #TODO: what to do about the intrinsics?
-        
-            self.mask_tf_pub.publish(p_tf_msg)
-
-    def callback(self,
-                 input_rgb_image: CompressedImage, 
-                 odom_transform: TransformStamped, 
-                 rgb_transform: TransformStamped):
-        self.tick += 1
-        if self.tick % self.rate != 0:
-            return
-        print('callback')
-
-        try:
-            # Convert compressed RGB image to OpenCV format and then to numpy array
-            decoded_rgb_image = self.bridge.compressed_imgmsg_to_cv2(input_rgb_image, desired_encoding="bgr8")
-            rgb_image_array = np.array(decoded_rgb_image)
-
-            # Extract transformation matrices from input transformations
-            odom_to_base_transform = transformation_matrix_of_pose(pose_of_tf(odom_transform))
-            base_to_rgb_transform = transformation_matrix_of_pose(pose_of_tf(rgb_transform))
-
-            # Compute global transformations for RGB and depth images
-            global_rgb_transform = (odom_to_base_transform @ base_to_rgb_transform)
-            
-        
-            self.buffer.append((rgb_image_array, global_rgb_transform))
-            print(len(self.buffer))
-
-            
-        except Exception as e:
-            # Consider adding some error logging here
-            rospy.logerr(f"Error processing images: {str(e)}")
-
-    
-    def publish_tf_list_to_specific_tfs(self, tf_msg):
-        # get camera tfs
-        tfs_list : List[TransformStamped] = tf_msg.transforms
-
-        # find transforms of interest        
-        rgb_frame_id = "wide_angle_camera_front_camera_parent" #rgb_img
-        base_frame_id = "base"
-
-        for tf in tfs_list:
-            if tf.child_frame_id == base_frame_id:
-                self.tf_odom_pub.publish(tf)
-            elif tf.child_frame_id == rgb_frame_id:
-                self.tf_rgb_pub.publish(tf)
-
 
     def save_rgb(self, input_rgb_image: CompressedImage):
         try:
@@ -346,16 +325,3 @@ class OVTDataInterface:
             # Consider adding some error logging here
             rospy.logerr(f"Error processing images: {str(e)}")
 
-    def save_depth(self, input_depth_image: Image):
-        try:
-            # Convert depth image to OpenCV format and then to numpy array
-            decoded_depth_image = self.bridge.imgmsg_to_cv2(input_depth_image, desired_encoding="32FC1")
-            decoded_depth_image = cv2.rotate(decoded_depth_image, cv2.ROTATE_180)
-            depth_img_vis = (1 - 255*decoded_depth_image/decoded_depth_image.max()).astype('uint8')
-            depth_img_vis = cv2.applyColorMap(depth_img_vis, cv2.COLORMAP_JET)
-
-            cv2.imwrite(F"output/depth_{self.depth_batchnum}_{input_depth_image.header.stamp.secs}_{input_depth_image.header.stamp.nsecs}.jpg", depth_img_vis)
-            rospy.loginfo("Saved depth, stamp@:%s", input_depth_image.header.stamp.secs)
-        except CvBridgeError as e:
-            # Consider adding some error logging here
-            rospy.logerr(f"Error processing images: {str(e)}")
