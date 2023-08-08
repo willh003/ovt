@@ -171,17 +171,6 @@ class VoxSegServer:
         self.img_count = 0
         print('World has been reset')
 
-    def KV_list_to_dict(self, kvs):
-        """
-        kvs: list of voxseg.msg.StrArrKV messages 
-        """
-        r = {}
-        for kv in kvs:
-            key = str(kv.key)
-            values = list(kv.values)
-            r[key] = [str(value) for value in values]
-
-        return r
 
     def unserialize_string(self, ser):
         """

@@ -259,13 +259,14 @@ class OVTDataInterface:
             rospy.logerr("Service call failed: %s", e)
             return None
 
+
     def publish_probs_and_tfs(self, pixel_probs_list, buffer):
         """
         Inputs:
             pixel_probs: A list of length n containing ImageArray[c] objects, where c is the number of classes
             buffer: a TriggerBuffer of length n
 
-        Publishes a MaskAndTF msg with self.mask_tf_pub
+        Publishes a MaskAndTF msg with self.mask_tf_pub for each class, for each image in the buffer
         
         """
         for pixel_probs_msg, (_, cam_info_msg) in zip(pixel_probs_list, buffer):

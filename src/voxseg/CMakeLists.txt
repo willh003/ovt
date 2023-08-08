@@ -52,13 +52,10 @@ find_package(catkin REQUIRED COMPONENTS
 ## Generate messages in the 'msg' folder
 add_message_files(
    FILES
-   TransformationMatrix.msg
-   StrArrKV.msg
    DepthImageInfo.msg
    Classes.msg
    VoxelGrid.msg
    WorldInfo.msg
-   CustomChannelImage.msg
    MaskAndTF.msg
    ImageArray.msg
  )

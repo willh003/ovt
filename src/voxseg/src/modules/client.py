@@ -1,16 +1,9 @@
 import rospy
-#from costmap_2d.msg import VoxelGrid
-from visualization_msgs.msg import Marker, MarkerArray
-from std_msgs.msg import String, MultiArrayLayout, MultiArrayDimension
-from sensor_msgs.msg import Image
-from voxseg.msg import DepthImageInfo, TransformationMatrix, Classes, StrArrKV, VoxelGrid
+
+from voxseg.msg import DepthImageInfo, Classes
 from voxseg.srv import VoxelComputation
 
-from cv_bridge import CvBridge
-import numpy as np
-import torch
 from typing import List, Dict, Union
-import json
 
 from modules.config import CLIENT_NODE, CLASS_TOPIC, IMAGE_TOPIC, VOXEL_TOPIC, VOXEL_REQUEST_SERVICE
 from modules.utils import *

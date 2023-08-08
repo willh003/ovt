@@ -7,9 +7,7 @@ import roslaunch
 import os
 import rospkg
 from std_msgs.msg import Int32
-from voxseg.msg import TransformationMatrix
 from modules.client import VoxSegClient
-from modules.server import VoxSegServer
 from modules.utils import load_images
 from send_classes import send_classes
 import numpy as np
