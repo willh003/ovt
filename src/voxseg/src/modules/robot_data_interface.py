@@ -217,7 +217,8 @@ class OVTDataInterface:
 
 
     def save_img(self, img, base='rgb'):
-        cv2.imwrite(F"output/{base}_{self.tick // self.rate}.png", img)
+        
+        cv2.imwrite(F"{VOXSEG_ROOT_DIR}/output/{base}_{self.tick // self.rate}.png", img)
 
 
 class RobotDataInterface:

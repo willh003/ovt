@@ -46,6 +46,7 @@ def save_masks(images, probs, base_name):
     for i, (image, prob_mask) in enumerate(zip(images, probs)):
         
         classifications = torch.argmax(prob_mask, dim=0)
+        print(classifications.float().mean())
         classifications = classifications / classifications.max()
         masked_overlay, mask = get_turbo_image(image, classifications)
         masked_overlay.save(os.path.join('test_output', f'{base_name}_{i}.jpg'))
@@ -54,7 +55,7 @@ def save_masks(images, probs, base_name):
 
 def load_images(directory):
 
-    image_files = sorted([f for f in os.listdir(directory) if f.startswith('img_') and f.endswith('.jpg')])
+    image_files = sorted([f for f in os.listdir(directory) if f.startswith('img_') and (f.endswith('.jpg') or f.endswith('.png'))])
 
     images = []
 
@@ -77,9 +78,7 @@ def encoder_test(inp_folder, classes):
     # t1 = time.time()
     adapt = encoder.call_with_classes(images, classes, use_adapter=True)
     # print(f'time: {time.time() - t1}')
-
     no_adapt = encoder.call_with_classes(images, classes, use_adapter=False)
-    
     
     save_masks(images, no_adapt, "no_adapt")
     save_masks(images, adapt, "adapt")
@@ -102,9 +101,9 @@ def quick_test(inp_file, classes):
 if __name__=='__main__':
     # predictor = Lightweight()
     # predictor.run(['test_data/test_18/img_640.jpg'], ['excavator', 'other'])
-   # quick_test('batch_test/cubesphereconetorus/test_0/img_260.jpg', ['shiny'])
-    #encoder_test('test_data/site_test_2', ['equipment', 'ground'])
-    encoder_test('test_data/banana_apple', ['banana', 'apple', 'other'])
+    quick_test('test_data/real_site/img_10.jpg', ['untraversable', 'traversable'])
+    #encoder_test('test_data/site_test', ['ground', 'equipment', 'other'])
+    #encoder_test('test_data/banana_apple', ['banana', 'apple', 'other'])
     #quick_test('test_data/site_test/img_600.jpg', )
 #quick_test()
 '''

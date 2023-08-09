@@ -5,9 +5,9 @@ COMPUTE_PERIOD: 50
 
 # NOTE: the ith class will be published to the ith prob_topic
 CLASSES:
-  - obstacle
-  - ground
   - fire hydrant
+  - ground
+  - wall
 
 
 PROB_TOPICS:
