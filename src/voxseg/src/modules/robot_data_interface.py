@@ -190,7 +190,6 @@ class OVTDataInterface:
 
 
         self.data_interface_node = rospy.get_param('/ovt/DATA_INTERFACE_NODE')
-        self.image_topic = rospy.get_param('/ovt/IMAGE_TOPIC')
         self.class_topic = rospy.get_param('/ovt/CLASS_TOPIC')
         self.ovt_request_service = rospy.get_param('/ovt/REQUEST_SERVICE')
         self.batch_size = rospy.get_param('/ovt/BATCH_SIZE')
@@ -212,24 +211,18 @@ class OVTDataInterface:
         # User Input Subscriptions
         RospySubscriber(self.change_rate_topic, Float32, callback=self.change_rate)
         RospySubscriber(self.change_buffer_size_topic, Int32, callback = self.change_buffer_size)
-        rospy.Subscriber(self.class_topic, Classes, self.class_name_callback)
+        RospySubscriber(self.class_topic, Classes, self.class_name_callback)
 
         # Elevation Mapping Plugin Publishers
-        self.c1_probs_pub = Publisher("/ovt/c1_probs", RosImage, queue_size=1000)
-        self.c2_probs_pub = Publisher("/ovt/c2_probs", RosImage, queue_size=1000)
-        self.c3_probs_pub = Publisher("/ovt/c3_probs", RosImage, queue_size=1000)
-        self.cam_info_pub = Publisher("/ovt/camera_info", CameraInfo, queue_size=1000)
-
-        self.class_pub_register = {self.classes[0]: self.c1_probs_pub, 
-                                   self.classes[1]: self.c2_probs_pub, 
-                                   self.classes[2]: self.c3_probs_pub}
+        prob_publisher_topics = list(rospy.get_param('/ovt/PROB_TOPICS'))
+        self.class_pub_register = {}
+        for i, topic in enumerate(prob_publisher_topics):
+            pub = Publisher(topic, RosImage, queue_size=1000)
+            self.class_pub_register[self.classes[i]] = pub
 
         # Robot Input Subscriptions
-        self.cam_info_sub = SyncedSubscriber('/wide_angle_camera_front/camera_info', CameraInfo)
-        self.rgb_sub = SyncedSubscriber("/wide_angle_camera_front/image_color_rect/compressed", CompressedImage)
-        ats = ApproximateTimeSynchronizer([self.rgb_sub, self.cam_info_sub], 
-                                           slop=0.1, queue_size=10) # NOTE: 0.1 default, 10 Arbitrary number
-        ats.registerCallback(self.image_callback)
+        robot_image_topic = rospy.get_param('/ovt/ROBOT_IMAGE_TOPIC')
+        RospySubscriber(robot_image_topic, CompressedImage, callback=self.image_callback)
         
         rospy.spin()
             
@@ -250,10 +243,10 @@ class OVTDataInterface:
         rospy.wait_for_service(self.ovt_request_service)
         try:
             compute_data_service = rospy.ServiceProxy(self.ovt_request_service, ImageSeg)
-            img_list =[img_msg for img_msg, _ in buffer_freeze]
+            img_list =[img_msg for img_msg in buffer_freeze]
             pixel_probs_srv = compute_data_service(img_list, [String(data=c) for c in self.classes])
 
-            self.publish_probs_and_tfs(pixel_probs_srv.prob_images, buffer_freeze)
+            self.publish_probs_and_tfs(pixel_probs_srv.prob_images)
 
         except rospy.ServiceException as e:
             rospy.logerr("Service call failed: %s", e)
@@ -269,8 +262,7 @@ class OVTDataInterface:
         Publishes a MaskAndTF msg with self.mask_tf_pub for each class, for each image in the buffer
         
         """
-        for pixel_probs_msg, (_, cam_info_msg) in zip(pixel_probs_list, buffer):
-            self.cam_info_pub.publish(cam_info_msg)
+        for pixel_probs_msg in pixel_probs_list:
             pixel_probs = pixel_probs_msg.images
             for i, prob_image_msg in enumerate(list(pixel_probs)):
                 current_class = self.classes[i]
@@ -279,14 +271,13 @@ class OVTDataInterface:
         
 
     def image_callback(self,
-                 input_rgb_image: CompressedImage, 
-                 camera_info: CameraInfo):
+                 input_rgb_image: CompressedImage):
         self.tick += 1
         if self.tick % self.rate != 0:
             return
 
         try:
-            self.buffer.append((input_rgb_image, camera_info))
+            self.buffer.append(input_rgb_image)
             print(len(self.buffer))
             
         except Exception as e:

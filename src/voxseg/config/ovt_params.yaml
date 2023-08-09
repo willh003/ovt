@@ -1,12 +1,20 @@
 # User
 DEVICE: cuda
 BATCH_SIZE: 2
+
+# NOTE: the ith class will be published to the ith prob_topic
 CLASSES:
   - traversable
   - untraversable
   - obstacle
 
+PROB_TOPICS:
+  - /ovt/c1_probs
+  - /ovt/c1_probs
+  - /ovt/c1_probs
+
 # ROS
+ROBOT_IMAGE_TOPIC: /wide_angle_camera_front/image_color_rect/compressed
 CLASS_TOPIC: classes_topic
 IMAGE_TOPIC: image_topic
 RESET_TOPIC: reset_topic

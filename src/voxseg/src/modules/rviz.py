@@ -1,7 +1,6 @@
 #!/home/sean/mambaforge/envs/ovseg/bin/python
 
 import rospy
-#from costmap_2d.msg import VoxelGrid
 from visualization_msgs.msg import Marker, MarkerArray
 from voxseg.msg import Classes, VoxelGrid
 import matplotlib.cm as cm
