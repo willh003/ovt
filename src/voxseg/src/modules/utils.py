@@ -24,6 +24,9 @@ import json
 import rospy
 from collections import deque
 
+import cv2
+
+
 
 
 ################# Data Structures #####################
@@ -453,6 +456,15 @@ def voxels_from_srv(msg):
 
 
 ################ Data Saving ##################
+
+def get_cv2_mask(mask):
+    '''
+    img: (n, m) torch tensor
+    '''
+    mask_np = (mask/mask.max()).cpu().numpy()*255.
+    color_map = cv2.applyColorMap(mask_np.astype(np.uint8), cv2.COLORMAP_JET)
+    return color_map
+
 
 def load_images(directory):
     """

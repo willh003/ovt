@@ -139,7 +139,14 @@ class OVTDataInterface:
         images = torch_from_img_array_msg(images_msg).float().to(self.device)
         t1  = rospy.get_time()
         class_probs = self.encoder.call_with_classes(images, classes, use_adapter=False)
+        
+        #### DEBUG
         print(f"CLIP Inference Time: {rospy.get_time() - t1}")
+        mask = torch.argmax(class_probs[0], dim=0).float()
+        cv2_mask = get_cv2_mask(mask)
+        self.save_img(images[0].permute(1,2,0).cpu().numpy(),base='rgb')
+        self.save_img(cv2_mask,base='semantic')
+
 
         all_probs_msg = []
         bridge = CvBridge()
@@ -150,9 +157,6 @@ class OVTDataInterface:
             separate_channel_probs = []
             for j in range(c):
                 channel_probs = multi_channel_probs[j]
-
-                
-                
                 probs_img_msg = bridge.cv2_to_imgmsg(channel_probs.numpy(), header=corresponding_image_msg.header)
                 
                 separate_channel_probs.append(probs_img_msg)
@@ -212,15 +216,9 @@ class OVTDataInterface:
             rospy.logwarn('Warning: decreased buffer size, resulting in lost data')
 
 
-    def save_rgb(self, input_rgb_image: CompressedImage):
-        try:
-            # Convert compressed RGB image to OpenCV format and then to numpy array
-            decoded_rgb_image = self.bridge.compressed_imgmsg_to_cv2(input_rgb_image, desired_encoding="bgr8")
-            cv2.imwrite(F"output/rgb_{self.rgb_batchnum}_{input_rgb_image.header.stamp.secs}_{input_rgb_image.header.stamp.nsecs}.png", decoded_rgb_image)
-            rospy.loginfo("Saved rgb, stamp@ %s", input_rgb_image.header.stamp.secs)
-        except CvBridgeError as e:
-            # Consider adding some error logging here
-            rospy.logerr(f"Error processing images: {str(e)}")
+    def save_img(self, img, base='rgb'):
+        cv2.imwrite(F"output/{base}_{self.tick // self.rate}.png", img)
+
 
 class RobotDataInterface:
     def __init__(self):

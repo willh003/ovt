@@ -1,13 +1,13 @@
 # User
 DEVICE: cuda
-BATCH_SIZE: 1 # NOTE: batch sizes above 2 are untested
-COMPUTE_PERIOD: 10
+BATCH_SIZE: 2 # NOTE: batch sizes above 2 are untested
+COMPUTE_PERIOD: 50
 
 # NOTE: the ith class will be published to the ith prob_topic
 CLASSES:
-  - traversable
-  - untraversable
   - obstacle
+  - ground
+  - fire hydrant
 
 
 PROB_TOPICS:
