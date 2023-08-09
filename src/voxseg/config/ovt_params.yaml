@@ -1,6 +1,7 @@
 # User
 DEVICE: cuda
-BATCH_SIZE: 2
+BATCH_SIZE: 1 # NOTE: batch sizes above 2 are untested
+COMPUTE_PERIOD: 10
 
 # NOTE: the ith class will be published to the ith prob_topic
 CLASSES:
@@ -8,20 +9,21 @@ CLASSES:
   - untraversable
   - obstacle
 
+
 PROB_TOPICS:
   - /ovt/c1_probs
-  - /ovt/c1_probs
-  - /ovt/c1_probs
+  - /ovt/c2_probs
+  - /ovt/c3_probs
 
 # ROS
 ROBOT_IMAGE_TOPIC: /wide_angle_camera_front/image_color_rect/compressed
-CLASS_TOPIC: classes_topic
-IMAGE_TOPIC: image_topic
-RESET_TOPIC: reset_topic
-CHANGE_BUFFER_SIZE_TOPIC: change_buffer_size
-CHANGE_RATE_TOPIC: change_rate
+CLASS_TOPIC: /ovt/classes_topic
+IMAGE_TOPIC: /ovt/image_topic
+RESET_TOPIC: /ovt/reset_topic
+CHANGE_BUFFER_SIZE_TOPIC: /ovt/change_buffer_size
+CHANGE_RATE_TOPIC: /ovt/change_rate
 
-REQUEST_SERVICE: request_computation
+REQUEST_SERVICE: /ovt/request_computation
 
-SERVER_NODE: backend
-DATA_INTERFACE_NODE: data_interface
+SERVER_NODE: ovt_backend
+DATA_INTERFACE_NODE: ovt_data_interface

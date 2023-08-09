@@ -39,7 +39,6 @@ class OVTServer:
 
         all_probs_msg = []
         bridge = CvBridge()
-        transform = ToPILImage()
         for i, multi_channel_probs in enumerate(class_probs):
             c, _, _ = multi_channel_probs.size()
 
@@ -58,7 +57,6 @@ class OVTServer:
             all_probs_msg.append(probs_msg)
 
         response = ImageSegResponse(prob_images = all_probs_msg)
-
         return response
 
 

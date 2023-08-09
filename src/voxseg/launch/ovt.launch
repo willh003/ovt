@@ -1,7 +1,8 @@
 <launch>
+
     <group ns="ovt">
       <rosparam file="$(find voxseg)/config/ovt_params.yaml" />
     </group>
-  <node pkg="voxseg" type="ovt_node.py" name="server_node" output="screen"/>
+  <!-- <node pkg="voxseg" type="ovt_node.py" name="server_node" output="screen"/> -->
   <node pkg="voxseg" type="data_interface_node.py" name="data_node" output="screen"/>
 </launch>

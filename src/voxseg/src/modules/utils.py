@@ -29,6 +29,18 @@ from collections import deque
 ################# Data Structures #####################
 
 from collections import deque
+
+class BufferLock:
+    def __init(self):
+        self.lock_buffer = False
+        
+    def __enter__(self):
+        return self  # The object to be used within the 'with' block
+    
+    def __exit__(self, exc_type, exc_value, traceback):
+        print("Exiting the context")
+        # Handle any cleanup or resource release here
+
 class TriggerBuffer:
     def __init__(self, maxlen,  fn, fold_fn = None, clear_on_trigger=True):
         """
