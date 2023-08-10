@@ -49,6 +49,7 @@ class ClipAdapter(nn.Module):
                     )
                 }
             )
+
         torch_features = torch.stack([self.text_feature_buffer[noun] for noun in noun_list])
         return torch_features
 

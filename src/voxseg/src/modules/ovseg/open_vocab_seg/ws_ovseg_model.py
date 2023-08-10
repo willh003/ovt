@@ -31,17 +31,17 @@ from detectron2.engine.defaults import DefaultPredictor
 
 
 # UNCOMMENT (and comment below) TO RUN FROM OVSEG ROOT
-# from open_vocab_seg import add_ovseg_config
-# from open_vocab_seg.utils import VisualizationDemo
-# from open_vocab_seg.ovseg_model import OVSeg
-# from open_vocab_seg.modeling.clip_adapter.utils import build_clip_model
+from open_vocab_seg import add_ovseg_config
+from open_vocab_seg.utils import VisualizationDemo
+from open_vocab_seg.ovseg_model import OVSeg
+from open_vocab_seg.modeling.clip_adapter.utils import build_clip_model
 
 
 # UNCOMMENT (and comment above) TO RUN FROM ROS NODE
-from modules.ovseg.open_vocab_seg.modeling.clip_adapter.utils import build_clip_model
-from modules.ovseg.open_vocab_seg import add_ovseg_config
-from modules.ovseg.open_vocab_seg.utils import VisualizationDemo
-from modules.ovseg.open_vocab_seg.ovseg_model import OVSeg
+# from modules.ovseg.open_vocab_seg.modeling.clip_adapter.utils import build_clip_model
+# from modules.ovseg.open_vocab_seg import add_ovseg_config
+# from modules.ovseg.open_vocab_seg.utils import VisualizationDemo
+# from modules.ovseg.open_vocab_seg.ovseg_model import OVSeg
 
 
 class WSImageEncoder(DefaultPredictor):
@@ -66,6 +66,7 @@ class WSImageEncoder(DefaultPredictor):
         cfg = self.setup_cfg(config_path, opts)
 
         super().__init__(cfg)
+        self.text_model = WSTextFeatureModel(cfg.MODEL.CLIP_ADAPTER.CLIP_MODEL_NAME, cfg.MODEL.CLIP_ADAPTER.MASK_PROMPT_DEPTH)
 
     def setup_cfg(self, config_file, opts):
         cfg = get_cfg()
@@ -119,8 +120,8 @@ class WSImageEncoder(DefaultPredictor):
         Returns:
             class_probs: torch.tensor, (batch, class_num, height, width)
         """
-        with torch.no_grad():  
-            class_probs = self.model(images, classes, use_adapter)
+        with torch.no_grad():
+            class_probs = self.model(images, classes, self.text_model, use_adapter)
             return class_probs
 
     def image_list_to_tensor(self, images):
@@ -173,6 +174,17 @@ class WSTextFeatureModel:
             "There is a large {} in the scene.",
         ]
 
+    def get_text_features(self, text):
+        """
+        If text is a dict, returns features for each key in the dict (assumes the values are lists of prompts)
+        Else if it is a list, returns features for each class in the list
+        """
+        if type(text) == dict:
+            return self.get_prompt_features(text)
+        elif type(text) == list:
+            return self.get_class_features(text)
+        else:
+            raise Exception('Wrong text type input')
 
     def get_logits(self, embeddings, classes, temperature=100, manual_prompts=False):
         """
@@ -202,6 +214,7 @@ class WSTextFeatureModel:
         """
         logits = self.get_logits(embeddings, classes, temperature, manual_prompts)
         bests = torch.argmax(logits, dim=1) 
+        
         return bests
 
     def normalize_feature(self, feat):
@@ -249,6 +262,7 @@ class WSTextFeatureModel:
         text_features_bucket = []
         for template in self.templates:
             noun_tokens = [clip.tokenize(template.format(noun)) for noun in noun_list]
+            
             text_inputs = torch.cat(noun_tokens).to(
                 self.clip_model.text_projection.data.device
             )
@@ -259,7 +273,6 @@ class WSTextFeatureModel:
         # ensemble by averaging
         text_features = torch.stack(text_features_bucket).mean(dim=0)
         text_features = text_features / text_features.norm(dim=-1, keepdim=True)
-
         return text_features.to(device)
 
 @META_ARCH_REGISTRY.register()
@@ -325,6 +338,8 @@ class OVTArch(MaskFormer):
         self.clip_ensemble: bool = clip_ensemble
         self.clip_ensemble_weight: float = clip_ensemble_weight
 
+        self.non_object_embedding = torch.normal(mean=0, std=768 ** (-.5), size=(1,768)).cuda()
+
     @classmethod
     def from_config(cls, cfg):
         init_kwargs = MaskFormer.from_config(cfg)
@@ -348,8 +363,15 @@ class OVTArch(MaskFormer):
         ] = cfg.MODEL.CLIP_ADAPTER.CLIP_ENSEMBLE_WEIGHT
 
         return init_kwargs
+    
 
-    def forward(self, images, class_names, use_adapter=False):
+    def forward(self, images, class_names, text_model, use_adapter=False):
+        """
+        images: b, c, h, w
+        class_names: dict of class to prompts or list of class names
+        text_model: model with a function called get_text_features, which returns n, 768 text features for classes
+        """
+        
         height = images.shape[-2]
         width = images.shape[-1]
 
@@ -360,7 +382,15 @@ class OVTArch(MaskFormer):
 
         # Get the outputs using their method, which takes into account the class names (and gets the logits immediately)
         # We can't do this in voxseg, because we want to build a representation of the embeddings in the env (so we have to argmax)
-        text_features = self.clip_adapter.get_text_features(class_names)
+        text_features_ws = text_model.get_text_features(class_names)
+        
+        # sorcery
+        non_object_text_features = (
+            self.non_object_embedding
+            / self.non_object_embedding.norm(dim=-1, keepdim=True)
+        )
+        text_features= torch.cat([text_features_ws, non_object_text_features], dim=0)
+        
         outputs["pred_logits"] = self.clip_adapter.get_sim_logits(
             text_features, self.clip_adapter.normalize_feature(outputs["pred_logits"])
         )

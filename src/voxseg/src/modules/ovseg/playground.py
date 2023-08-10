@@ -37,7 +37,7 @@ def get_turbo_image(img, mask):
 
 
     # Overlay the color map on the original image
-    overlay = cv2.addWeighted(img_np.astype(np.uint8), 0.7, color_map, 0.3, 0)
+    overlay = cv2.addWeighted(img_np.astype(np.uint8), 0.4, color_map, 0.6, 0)
     output = Image.fromarray(overlay)
 
     return output, Image.fromarray(color_map)
@@ -55,7 +55,8 @@ def save_masks(images, probs, base_name):
 
 def load_images(directory):
 
-    image_files = sorted([f for f in os.listdir(directory) if f.startswith('img_') and (f.endswith('.jpg') or f.endswith('.png'))])
+    image_files = sorted([f for f in os.listdir(directory) if (f.startswith('img_') or f.startswith('rgb_'))
+     and (f.endswith('.jpg') or f.endswith('.png'))])
 
     images = []
 
@@ -75,11 +76,13 @@ def encoder_test(inp_folder, classes):
     encoder =  WSImageEncoder(config='configs/ovt.yaml')
     
 
-    # t1 = time.time()
+    t1 = time.time()
     adapt = encoder.call_with_classes(images, classes, use_adapter=True)
-    # print(f'time: {time.time() - t1}')
+    t2 = time.time()
+    print(f'adapt time: {t2 - t1}')
     no_adapt = encoder.call_with_classes(images, classes, use_adapter=False)
-    
+    print(f'no adapt time: {time.time() - t2}')
+
     save_masks(images, no_adapt, "no_adapt")
     save_masks(images, adapt, "adapt")
     
@@ -87,6 +90,29 @@ def encoder_test(inp_folder, classes):
 
     # diff = adapt - no_adapt
     
+def time_test(inp_folder, classes):
+    total_time_adapt = 0
+    total_time_no_adapt = 0
+
+    images = load_images(inp_folder)
+    encoder =  WSImageEncoder(config='configs/ovt.yaml')
+    
+    for i, image in enumerate(images):
+        t1 = time.time()
+        adapt = encoder.call_with_classes(image[None], classes, use_adapter=True)
+        t2 = time.time()
+        no_adapt = encoder.call_with_classes(image[None], classes, use_adapter=False)
+        t3 = time.time()
+
+        total_time_adapt += (t2-t1)  
+        total_time_no_adapt += (t3-t2)
+
+    total_time_adapt /= len(images)
+    total_time_no_adapt /= len(images)
+
+    print(f'Total adapt time: {total_time_adapt}')
+    print(f'Total no adapt time: {total_time_no_adapt}')
+
 
 def quick_test(inp_file, classes):
     
@@ -101,8 +127,11 @@ def quick_test(inp_file, classes):
 if __name__=='__main__':
     # predictor = Lightweight()
     # predictor.run(['test_data/test_18/img_640.jpg'], ['excavator', 'other'])
-    quick_test('test_data/real_site/img_10.jpg', ['untraversable', 'traversable'])
-    #encoder_test('test_data/site_test', ['ground', 'equipment', 'other'])
+    #quick_test('test_data/real_site/img_40.png', ['untraversable', 'traversable ground', 'obstacle'])
+    time_test('test_data/real_site', ['floor', 'other'])
+    
+    #prefix = "You are a robot in a simulation environment. This photo is {} "
+   # encoder_test('test_data/test_gazebo', {'untraversable': prefix.format("untraversable"), 'traversable': prefix.format("traversable")})
     #encoder_test('test_data/banana_apple', ['banana', 'apple', 'other'])
     #quick_test('test_data/site_test/img_600.jpg', )
 #quick_test()

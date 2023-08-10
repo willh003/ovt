@@ -52,7 +52,7 @@ MODEL:
     MASK_PROMPT_FWD: True # use mask prompt during forward
     REGION_RESIZED: True # resize to the input of clip, e.g., 224
     CLIP_ENSEMBLE: True # use ensemble of two classification branches
-    CLIP_ENSEMBLE_WEIGHT: 0.0
+    CLIP_ENSEMBLE_WEIGHT: 0.8
 DATASETS:
   TRAIN: ("coco_2017_train_stuff_sem_seg",)
   TEST: ("ade20k_sem_seg_val",)
