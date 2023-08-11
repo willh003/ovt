@@ -36,7 +36,7 @@ def get_turbo_image(img, mask):
     overlay = cv2.addWeighted(img_np.astype(np.uint8), 0.4, color_map, 0.6, 0)
     output = Image.fromarray(overlay)
 
-    return output, Image.fromarray(color_map)
+    return output, Image.fromarray(color_map), overlay
 
 def save_masks(images, probs, base_name, img_nums=None):
     if img_nums == None:
@@ -46,7 +46,7 @@ def save_masks(images, probs, base_name, img_nums=None):
         classifications = torch.argmax(prob_mask, dim=0)
         print(classifications.float().mean())
         classifications = classifications / classifications.max()
-        masked_overlay, mask = get_turbo_image(image, classifications)
+        masked_overlay, mask, _ = get_turbo_image(image, classifications)
 
         num = img_nums[i]
         print(num)

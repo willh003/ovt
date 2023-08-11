@@ -88,6 +88,8 @@ class OVTDataInterface:
             pub = Publisher(topic, RosImage, queue_size=1000)
             self.class_pub_register[self.classes[i]] = pub
 
+        self.mask_pub = Publisher('/ovt/masked_image', RosImage, queue_size=1000)
+
         # Robot Input Subscriptions
         robot_image_topic = rospy.get_param('/ovt/ROBOT_IMAGE_TOPIC')
         RospySubscriber(robot_image_topic, CompressedImage, callback=self.image_callback,queue_size=10000)
@@ -132,7 +134,8 @@ class OVTDataInterface:
         """
         assumes only 1 item in images
         """
-
+        bridge = CvBridge()
+        
         # Update from the most recent tensors 
         images_msg = list(images)
         
@@ -146,9 +149,11 @@ class OVTDataInterface:
         print(f"CLIP Inference Time: {rospy.get_time() - t1}")
         classifications = torch.argmax(class_probs[0], dim=0)
         classifications = classifications / classifications.max()
-        masked_overlay, mask = get_turbo_image(images[0], classifications)
-        time = rospy.get_time()
+        masked_overlay, mask, cv2_overlay = get_turbo_image(images[0], classifications)
+        mask_msg = bridge.cv2_to_imgmsg(cv2_overlay, header=images_msg[0].header)
+        self.mask_pub.publish(mask_msg)
 
+        time = rospy.get_time()
         base_path = os.path.join(VOXSEG_ROOT_DIR, 'output')
         if not os.path.exists(base_path):
             os.mkdir(base_path)
@@ -156,7 +161,7 @@ class OVTDataInterface:
 
 
         all_probs_msg = []
-        bridge = CvBridge()
+        
         for i, multi_channel_probs in enumerate(class_probs):
             c, _, _ = multi_channel_probs.size()
 
