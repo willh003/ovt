@@ -5,7 +5,7 @@ COMPUTE_PERIOD: 50
 
 # NOTE: the ith class will be published to the ith prob_topic
 CLASSES:
-  - something an Anymal robot could walk on
+  - floor
   - other
 
 BASE_NAME: semantic

@@ -93,8 +93,8 @@ class OVTDataInterface:
         self.classes = list(rospy.get_param('/ovt/CLASSES'))
         self.base_name = rospy.get_param('/ovt/BASE_NAME')
 
-        self.encoder = WSImageEncoder(VOXSEG_ROOT_DIR, config='configs/ovt.yaml')
-        #self.encoder = WSImageEncoder(VOXSEG_ROOT_DIR, config='configs/ovt_small.yaml')
+        #self.encoder = WSImageEncoder(VOXSEG_ROOT_DIR, config='configs/ovt.yaml')
+        self.encoder = WSImageEncoder(VOXSEG_ROOT_DIR, config='configs/ovt_small.yaml')
         self.device = rospy.get_param('ovt/DEVICE')
         
         # self.buffer contains tuples of (RosImage, CameraInfo representing camera for that image)
