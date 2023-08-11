@@ -29,19 +29,18 @@ from detectron2.data.detection_utils import read_image
 from detectron2.utils.logger import setup_logger
 from detectron2.engine.defaults import DefaultPredictor
 
-
-# UNCOMMENT (and comment below) TO RUN FROM OVSEG ROOT
-# from open_vocab_seg import add_ovseg_config
-# from open_vocab_seg.utils import VisualizationDemo
-# from open_vocab_seg.ovseg_model import OVSeg
-# from open_vocab_seg.modeling.clip_adapter.utils import build_clip_model
-
-
-# UNCOMMENT (and comment above) TO RUN FROM ROS NODE
-from modules.ovseg.open_vocab_seg.modeling.clip_adapter.utils import build_clip_model
-from modules.ovseg.open_vocab_seg import add_ovseg_config
-from modules.ovseg.open_vocab_seg.utils import VisualizationDemo
-from modules.ovseg.open_vocab_seg.ovseg_model import OVSeg
+if os.getcwd().split('/')[-1] == 'ovseg':
+    # Playground
+    from open_vocab_seg import add_ovseg_config
+    from open_vocab_seg.utils import VisualizationDemo
+    from open_vocab_seg.ovseg_model import OVSeg
+    from open_vocab_seg.modeling.clip_adapter.utils import build_clip_model
+else:
+    # ROS
+    from modules.ovseg.open_vocab_seg.modeling.clip_adapter.utils import build_clip_model
+    from modules.ovseg.open_vocab_seg import add_ovseg_config
+    from modules.ovseg.open_vocab_seg.utils import VisualizationDemo
+    from modules.ovseg.open_vocab_seg.ovseg_model import OVSeg
 
 
 class WSImageEncoder(DefaultPredictor):
@@ -339,7 +338,7 @@ class OVTArch(MaskFormer):
         self.clip_ensemble_weight: float = clip_ensemble_weight
 
         # 512 for small, 768 for large
-        self.embed_size = 768
+        self.embed_size = 512
         self.non_object_embedding = torch.normal(mean=0, std=self.embed_size ** (-.5), size=(1,self.embed_size)).cuda()
 
     @classmethod

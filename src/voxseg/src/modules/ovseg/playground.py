@@ -9,11 +9,12 @@ from detectron2.data.detection_utils import read_image
 import torch
 import torch.nn.functional as F
 
-# ROS
-from modules.ovseg.open_vocab_seg.ws_ovseg_model import WSImageEncoder
-
-# playground
-#from open_vocab_seg.ws_ovseg_model import WSImageEncoder
+if os.getcwd().split('/')[-1] == 'ovseg':
+    # playground
+    from open_vocab_seg.ws_ovseg_model import WSImageEncoder
+else:
+    # ROS
+    from modules.ovseg.open_vocab_seg.ws_ovseg_model import WSImageEncoder
 
 from PIL import Image
 import numpy as np
@@ -35,8 +36,9 @@ def get_turbo_image(img, mask):
     # Overlay the color map on the original image
     overlay = cv2.addWeighted(img_np.astype(np.uint8), 0.4, color_map, 0.6, 0)
     output = Image.fromarray(overlay)
+    image = Image.fromarray(img_np.astype(np.uint8))
 
-    return output, Image.fromarray(color_map), overlay
+    return output, Image.fromarray(color_map), image, overlay
 
 def save_masks(images, probs, base_name, img_nums=None):
     if img_nums == None:
@@ -46,7 +48,7 @@ def save_masks(images, probs, base_name, img_nums=None):
         classifications = torch.argmax(prob_mask, dim=0)
         print(classifications.float().mean())
         classifications = classifications / classifications.max()
-        masked_overlay, mask, _ = get_turbo_image(image, classifications)
+        masked_overlay, mask,_, _ = get_turbo_image(image, classifications)
 
         num = img_nums[i]
         print(num)
@@ -82,7 +84,7 @@ def load_images(directory):
 
 def encoder_test(inp_folder, classes):
     images, img_nums = load_images(inp_folder)
-    encoder =  WSImageEncoder(config='configs/ovt.yaml')
+    encoder =  WSImageEncoder(config='configs/ovt_small.yaml')
     print('model loaded')
     
     splits = list(range(0, len(images), 10))
@@ -150,7 +152,7 @@ if __name__=='__main__':
     # predictor = Lightweight()
     # predictor.run(['test_data/test_18/img_640.jpg'], ['excavator', 'other'])
     #quick_test('test_data/real_site/img_40.png', ['untraversable', 'traversable ground', 'obstacle'])
-    encoder_test('test_data/real_site_all', ['something an Anymal robot could walk on ', 'other '])
+    encoder_test('test_data/real_site_all', ['ground', 'other '])
     #prefix = "You are a robot in a simulation environment. This photo is {} "
    # encoder_test('test_data/test_gazebo', {'untraversable': prefix.format("untraversable"), 'traversable': prefix.format("traversable")})
     #encoder_test('test_data/banana_apple', ['banana', 'apple', 'other'])
