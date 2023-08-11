@@ -24,8 +24,6 @@ from open_vocab_seg.ws_ovseg_model import WSImageEncoder
 from PIL import Image
 import numpy as np
 
-from moviepy.editor import ImageSequenceClip        
-
 
 def get_turbo_image(img, mask):
     """
