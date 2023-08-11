@@ -5,15 +5,13 @@ COMPUTE_PERIOD: 50
 
 # NOTE: the ith class will be published to the ith prob_topic
 CLASSES:
-  - fire hydrant
-  - ground
-  - wall
+  - something an Anymal robot could walk on
+  - other
 
 
 PROB_TOPICS:
   - /ovt/c1_probs
   - /ovt/c2_probs
-  - /ovt/c3_probs
 
 # ROS
 ROBOT_IMAGE_TOPIC: /wide_angle_camera_front/image_color_rect/compressed

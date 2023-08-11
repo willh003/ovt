@@ -17,6 +17,7 @@ from message_filters import Subscriber as SyncedSubscriber
 
 from contextlib import contextmanager
 import numpy as np
+import time
 
 from modules.utils import *
 from modules.real_data_cfg import IMAGE_TOPIC
@@ -26,6 +27,8 @@ from modules.ovseg.open_vocab_seg.ws_ovseg_model import WSImageEncoder
 # Method cutout from Wild Visual Navigation--------------------#
 from typing import List, Sequence
 from liegroups import SE3, SO3
+
+
 def transformation_matrix_of_pose(pose : Sequence[float]):
     """Convert a translation and rotation into a 4x4 transformation matrix.
  
@@ -100,6 +103,7 @@ class OVTDataInterface:
         RospySubscriber(robot_image_topic, CompressedImage, callback=self.image_callback,queue_size=10000)
     
         print('OVT Interface Initialized')
+        self.time_request = time.time()
         rospy.spin()
             
 
@@ -114,9 +118,13 @@ class OVTDataInterface:
             
             tfs: numpy array of tfs, shape (B, 4, 4)
         """
-        with self.lock_buffer(buffer) as buffer_freeze:
-            all_probs_msg = self._handle_compute_request(buffer_freeze, self.classes)
-            self.publish_probs_and_tfs(all_probs_msg)
+        print(f'Time since last request: {time.time()-self.time_request}')
+        self.time_request = time.time()
+        # with self.lock_buffer(buffer) as buffer_freeze:
+        #     all_probs_msg = self._handle_compute_request(buffer_freeze, self.classes)
+        #     self.publish_probs_and_tfs(all_probs_msg)
+        
+        
 
     @contextmanager
     def lock_buffer(self, buffer):
@@ -131,7 +139,7 @@ class OVTDataInterface:
 
 
     def _handle_compute_request(self, images, classes):
-        # Update frpom the most recent tensors 
+        # Update from the most recent tensors 
         images_msg = list(images)
         
         classes = [str(c) for c in classes]
