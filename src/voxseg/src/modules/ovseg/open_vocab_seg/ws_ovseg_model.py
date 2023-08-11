@@ -44,7 +44,7 @@ else:
 
 
 class WSImageEncoder(DefaultPredictor):
-    def __init__(self, root_dir=None, ovseg_dir='modules/ovseg', config='configs/ovseg_ws_demo.yaml'):
+    def __init__(self, root_dir=None, ovseg_dir='modules/ovseg', config='configs/ovt.yaml', use_large=True):
         """
         Inputs:
             root_dir: the directory from which python is being called (PYTHON_PATH)
@@ -53,7 +53,11 @@ class WSImageEncoder(DefaultPredictor):
 
         # handle case where ovseg is called from outside the root
         # main use case is for ros
-        weights_file = 'models/ovseg_swinbase_vitL14_ft_mpt.pth'
+        self.use_large = use_large
+        if use_large:
+            weights_file= 'models/ovseg_swinbase_vitL14_ft_mpt.pth'
+        else:
+            weights_file = 'models/ovseg_R101c_vitB16_ft_mpt.pth.pt'
         if root_dir:
             config_path = os.path.join(root_dir, ovseg_dir, config) 
             weights_path = os.path.join(root_dir, ovseg_dir, weights_file)
@@ -120,7 +124,10 @@ class WSImageEncoder(DefaultPredictor):
             class_probs: torch.tensor, (batch, class_num, height, width)
         """
         with torch.no_grad():
-            class_probs = self.model(images, classes, self.text_model, use_adapter)
+            if self.use_large:
+                class_probs = self.model(images, classes, self.text_model,768, use_adapter)
+            else:
+                class_probs = self.model(images, classes, self.text_model,512, use_adapter)
             return class_probs
 
     def image_list_to_tensor(self, images):
@@ -337,10 +344,6 @@ class OVTArch(MaskFormer):
         self.clip_ensemble: bool = clip_ensemble
         self.clip_ensemble_weight: float = clip_ensemble_weight
 
-        # 512 for small, 768 for large
-        self.embed_size = 512
-        self.non_object_embedding = torch.normal(mean=0, std=self.embed_size ** (-.5), size=(1,self.embed_size)).cuda()
-
     @classmethod
     def from_config(cls, cfg):
         init_kwargs = MaskFormer.from_config(cfg)
@@ -366,13 +369,17 @@ class OVTArch(MaskFormer):
         return init_kwargs
     
 
-    def forward(self, images, class_names, text_model, use_adapter=False):
+    def forward(self, images, class_names, text_model, embed_size=768, use_adapter=False):
         """
         images: b, c, h, w
         class_names: dict of class to prompts or list of class names
         text_model: model with a function called get_text_features, which returns n, 768 text features for classes
+        embed_size: 768 for large, 512 for small
+        use_adapter: true to use the clip adapter (overrides CLIP_ENSEMBLE in the yaml)
         """
-        
+        if not hasattr(self,"non_object_embedding"):
+            self.non_object_embedding = torch.normal(mean=0, std=embed_size ** (-.5), size=(1,embed_size)).cuda()
+
         height = images.shape[-2]
         width = images.shape[-1]
 

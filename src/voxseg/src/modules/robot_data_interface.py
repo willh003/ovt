@@ -144,14 +144,13 @@ class OVTDataInterface:
         images = torch_from_img_array_msg(images_msg).float().to(self.device)
         t1  = rospy.get_time() # replace with torch events
         class_probs = self.encoder.call_with_classes(images, classes, use_adapter=True)
-        
-        #### DEBUG
-        print(f"CLIP Inference Time: {rospy.get_time() - t1}")
+                
         classifications = torch.argmax(class_probs[0], dim=0)
         classifications = classifications / classifications.max()
         masked_overlay, mask, image, cv2_overlay = get_turbo_image(images[0], classifications)
         mask_msg = bridge.cv2_to_imgmsg(cv2_overlay, header=images_msg[0].header)
         self.mask_pub.publish(mask_msg)
+        print(f"CLIP Inference and ROS Serialization Time: {rospy.get_time() - t1}")
 
         time = rospy.get_time()
         base_path = os.path.join(VOXSEG_ROOT_DIR, 'output1')

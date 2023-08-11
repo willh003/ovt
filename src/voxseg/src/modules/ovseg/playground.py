@@ -7,6 +7,8 @@ from detectron2.data.detection_utils import read_image
 
 
 import torch
+
+from torch.profiler import profile, record_function, ProfilerActivity
 import torch.nn.functional as F
 
 if os.getcwd().split('/')[-1] == 'ovseg':
@@ -82,9 +84,15 @@ def load_images(directory):
     
     return torch.stack(images), image_num
 
-def encoder_test(inp_folder, classes):
+def encoder_test(inp_folder, classes, use_large=False):
     images, img_nums = load_images(inp_folder)
-    encoder =  WSImageEncoder(config='configs/ovt_small.yaml')
+
+    if use_large:
+        config='configs/ovt.yaml'
+    else:
+        config='configs/ovt_small.yaml'
+    
+    encoder =  WSImageEncoder(config=config, use_large=use_large)
     print('model loaded')
     
     splits = list(range(0, len(images), 10))
@@ -113,29 +121,34 @@ def encoder_test(inp_folder, classes):
 
     # diff = adapt - no_adapt
     
-def time_test(inp_folder, classes):
+def time_test(inp_folder, classes, use_large=False):
     total_time_adapt = 0
     total_time_no_adapt = 0
 
-    images = load_images(inp_folder)
-    encoder =  WSImageEncoder(config='configs/ovt.yaml')
+    images, _ = load_images(inp_folder)
+    if use_large:
+        config='configs/ovt.yaml'
+    else:
+        config='configs/ovt_small.yaml'
+    
+    encoder =  WSImageEncoder(config=config, use_large=use_large)
+    print('model loaded')
     
     for i, image in enumerate(images):
+
         t1 = time.time()
         adapt = encoder.call_with_classes(image[None], classes, use_adapter=True)
-        t2 = time.time()
+        total_time_adapt += time.time() - t1
+
+        t1 = time.time()
         no_adapt = encoder.call_with_classes(image[None], classes, use_adapter=False)
-        t3 = time.time()
-        
-        if i > 0:
-            total_time_adapt += (t2-t1)  
-            total_time_no_adapt += (t3-t2)
+        total_time_no_adapt += time.time() - t1
 
-    total_time_adapt /= (len(images) - 1)
-    total_time_no_adapt /= (len(images) - 1)
+    total_time_adapt /= (len(images))
+    total_time_no_adapt /= (len(images))
 
-    print(f'Total adapt time: {total_time_adapt}')
-    print(f'Total no adapt time: {total_time_no_adapt}')
+    print(f'Average adapt time: {total_time_adapt}')
+    print(f'Average no adapt time: {total_time_no_adapt}')
 
 
 def quick_test(inp_file, classes):
@@ -149,18 +162,10 @@ def quick_test(inp_file, classes):
 
 
 if __name__=='__main__':
-    # predictor = Lightweight()
-    # predictor.run(['test_data/test_18/img_640.jpg'], ['excavator', 'other'])
+
     #quick_test('test_data/real_site/img_40.png', ['untraversable', 'traversable ground', 'obstacle'])
-    encoder_test('test_data/real_site_all', ['ground', 'other '])
+    encoder_test('test_data/real_site_all', ['something an Anymal robot could walk on', 'other '], use_large=False)
+   # time_test('test_data/real_site_small', ['ground', 'other '], use_large=False)
+    
     #prefix = "You are a robot in a simulation environment. This photo is {} "
-   # encoder_test('test_data/test_gazebo', {'untraversable': prefix.format("untraversable"), 'traversable': prefix.format("traversable")})
-    #encoder_test('test_data/banana_apple', ['banana', 'apple', 'other'])
-    #quick_test('test_data/site_test/img_600.jpg', )
-#quick_test()
-'''
-python train_net.py --num-gpu 1 --eval-only --config-file configs/ovseg_R101c_vitB_bs32_120k.yaml MODEL.WEIGHTS /home/pcgta/Documents/playground/ov-seg/models/ovseg_R101c_vitB16_ft_mpt.pth.pt DATASETS.TEST \(\"ade20k_sem_seg_val\",\) 
 
-
-python demo.py --config-file configs/ovseg_swinB_vitL_demo.yaml --class-names 'Oculus' 'Ukulele'  --input ./resources/demo_samples/sample_03.jpeg --output ./pred --opts MODEL.WEIGHTS 
-'''

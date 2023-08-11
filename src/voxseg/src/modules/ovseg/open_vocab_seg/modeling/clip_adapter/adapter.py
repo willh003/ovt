@@ -31,7 +31,6 @@ class ClipAdapter(nn.Module):
         return self.get_sim_logits(text_feature, image_features)
 
     def _preprocess_image(self, image: torch.Tensor):
-        breakpoint()
         return image
 
     def _get_text_features(self, noun_list: List[str]):
@@ -126,8 +125,9 @@ class MaskFormerClipAdapter(ClipAdapter):
         normalize: bool = True,
         fwd_w_region_mask: bool = False,
     ):
-        breakpoint()
         (regions, unnorm_regions), region_masks, valid_flag = self._preprocess_image(image, mask, normalize=normalize)
+
+        
         if regions is None:
             return None, valid_flag
         if isinstance(regions, list):
@@ -163,6 +163,7 @@ class MaskFormerClipAdapter(ClipAdapter):
         valid = bin_mask.sum(dim=(-1, -2)) > 0
         bin_mask = bin_mask[valid]
         mask = mask[valid]
+
         if not self.mask_matting:
             mask = bin_mask
         bin_mask = BitMasks(bin_mask)
@@ -170,7 +171,9 @@ class MaskFormerClipAdapter(ClipAdapter):
         # crop,mask
         regions = []
         region_masks = []
+
         for bbox, single_mask in zip(bboxes, mask):
+
             region, region_mask = crop_with_mask(
                 image.type(dtype),
                 single_mask.type(dtype),
@@ -178,6 +181,7 @@ class MaskFormerClipAdapter(ClipAdapter):
                 fill=self.mask_fill,
                 expand_ratio=self.mask_expand_ratio,
             )
+
             regions.append(region.unsqueeze(0))
             region_masks.append(region_mask.unsqueeze(0))
         if len(regions) == 0:
