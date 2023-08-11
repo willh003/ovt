@@ -1,5 +1,5 @@
 <launch>
-
+<!-- 
   <node pkg="nodelet" type="nodelet" name="nodelet_manager" args="manager" />
 
   <node pkg="nodelet" type="nodelet" name="nodelet1"
@@ -8,6 +8,7 @@
     <remap from="image_rect" to="/depth_camera_front_upper/depth/image_rect_raw"/>
     <remap from="points" to="/depth_camera_front/point_cloud_self_filtered"/>
   </node>
+   -->
 
 
     <group ns="ovt">
