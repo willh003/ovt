@@ -13,6 +13,7 @@ find_package(catkin REQUIRED COMPONENTS
   geometry_msgs
   sensor_msgs
   costmap_2d
+  depth_image_proc
   message_generation
 )
 

@@ -138,7 +138,7 @@ class OVTDataInterface:
         
         images = torch_from_img_array_msg(images_msg).float().to(self.device)
         t1  = rospy.get_time()
-        class_probs = self.encoder.call_with_classes(images, classes, use_adapter=False)
+        class_probs = self.encoder.call_with_classes(images, classes, use_adapter=True)
         
         #### DEBUG
         print(f"CLIP Inference Time: {rospy.get_time() - t1}")

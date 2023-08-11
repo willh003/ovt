@@ -14,4 +14,5 @@ src/voxseg/src/modules/ovseg/datasets/
 src/voxseg/src/modules/ovseg/models/
 src/voxseg/src/modules/ovseg/output/
 src/voxseg/src/modules/ovseg/test_data/*
+src/voxseg/src/modules/ovseg/test_output/*
 src/voxseg/src/modules/ovseg/batch_test/*
