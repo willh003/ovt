@@ -31,6 +31,7 @@ class ClipAdapter(nn.Module):
         return self.get_sim_logits(text_feature, image_features)
 
     def _preprocess_image(self, image: torch.Tensor):
+        breakpoint()
         return image
 
     def _get_text_features(self, noun_list: List[str]):
@@ -125,6 +126,7 @@ class MaskFormerClipAdapter(ClipAdapter):
         normalize: bool = True,
         fwd_w_region_mask: bool = False,
     ):
+        breakpoint()
         (regions, unnorm_regions), region_masks, valid_flag = self._preprocess_image(image, mask, normalize=normalize)
         if regions is None:
             return None, valid_flag
@@ -197,7 +199,6 @@ class MaskFormerClipAdapter(ClipAdapter):
                 F.interpolate(r, size=(224, 224), mode="bicubic") for r in unnorm_regions
             ]
             unnorm_regions = torch.cat(unnorm_regions)
-
         return (regions, unnorm_regions), region_masks, valid
 
     def get_text_features(self, noun_list: List[str]):

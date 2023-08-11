@@ -25,7 +25,7 @@ pip install .
 
 - Build and source the workspace. To do so, run the following, from the workspace root. Note that the workspace root is the root of this repo, unless you installed voxseg to your own separate catkin workspace:
 ```bash
-catkin_make
+catkin build voxseg 
 source devel/setup.bash
 ```
 
