@@ -8,6 +8,7 @@ CLASSES:
   - something an Anymal robot could walk on
   - other
 
+BASE_NAME: semantic
 
 PROB_TOPICS:
   - /ovt/c1_probs

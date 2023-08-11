@@ -1,30 +1,23 @@
 import os
-import argparse
-import glob
-import multiprocessing as mp
+
 import time
 import cv2
-import tqdm
 
-from detectron2.config import get_cfg
-
-from detectron2.projects.deeplab import add_deeplab_config
 from detectron2.data.detection_utils import read_image
-from detectron2.utils.logger import setup_logger
-from open_vocab_seg import add_ovseg_config
 
-from open_vocab_seg.utils import VisualizationDemo
-from detectron2.engine.defaults import DefaultPredictor
 
 import torch
 import torch.nn.functional as F
 
-from open_vocab_seg.ws_ovseg_model import WSImageEncoder
+# ROS
+from modules.ovseg.open_vocab_seg.ws_ovseg_model import WSImageEncoder
+
+# playground
+#from open_vocab_seg.ws_ovseg_model import WSImageEncoder
 
 from PIL import Image
 import numpy as np
 
-from moviepy.editor import ImageSequenceClip        
 
 
 def get_turbo_image(img, mask):

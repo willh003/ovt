@@ -197,6 +197,7 @@ class MaskFormerClipAdapter(ClipAdapter):
                 F.interpolate(r, size=(224, 224), mode="bicubic") for r in unnorm_regions
             ]
             unnorm_regions = torch.cat(unnorm_regions)
+
         return (regions, unnorm_regions), region_masks, valid
 
     def get_text_features(self, noun_list: List[str]):

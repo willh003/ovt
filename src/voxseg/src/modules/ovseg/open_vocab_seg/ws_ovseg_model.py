@@ -338,7 +338,9 @@ class OVTArch(MaskFormer):
         self.clip_ensemble: bool = clip_ensemble
         self.clip_ensemble_weight: float = clip_ensemble_weight
 
-        self.non_object_embedding = torch.normal(mean=0, std=768 ** (-.5), size=(1,768)).cuda()
+        # 512 for small, 768 for large
+        self.embed_size = 768
+        self.non_object_embedding = torch.normal(mean=0, std=self.embed_size ** (-.5), size=(1,self.embed_size)).cuda()
 
     @classmethod
     def from_config(cls, cfg):

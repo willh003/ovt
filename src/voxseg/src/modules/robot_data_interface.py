@@ -23,6 +23,7 @@ from modules.utils import *
 from modules.real_data_cfg import IMAGE_TOPIC
 from modules.voxseg_root_dir import VOXSEG_ROOT_DIR
 from modules.ovseg.open_vocab_seg.ws_ovseg_model import WSImageEncoder
+from modules.ovseg.playground import get_turbo_image
 
 # Method cutout from Wild Visual Navigation--------------------#
 from typing import List, Sequence
@@ -54,6 +55,20 @@ def pose_of_tf(tf : TransformStamped) -> np.ndarray:
     qw = tf.transform.rotation.w
     return np.array([tx,ty,tz,qx,qy,qz,qw])
 
+def request_timer(callback_func):
+    def wrapper(*args, **kwargs):
+        current_time = time.time()
+        
+        if not hasattr(callback_func, 'last_call_time'):
+            callback_func.last_call_time = current_time
+        else:
+            elapsed_time = current_time - callback_func.last_call_time
+            print(f"Time since last callback: {elapsed_time:.2f} seconds")
+            callback_func.last_call_time = current_time
+        
+        return callback_func(*args, **kwargs)
+    
+    return wrapper    
 
 class OVTDataInterface:
     def __init__(self):
@@ -76,8 +91,10 @@ class OVTDataInterface:
         self.tick = 0
         self.rate = rospy.get_param('/ovt/COMPUTE_PERIOD')
         self.classes = list(rospy.get_param('/ovt/CLASSES'))
+        self.base_name = rospy.get_param('/ovt/BASE_NAME')
 
         self.encoder = WSImageEncoder(VOXSEG_ROOT_DIR, config='configs/ovt.yaml')
+        #self.encoder = WSImageEncoder(VOXSEG_ROOT_DIR, config='configs/ovt_small.yaml')
         self.device = rospy.get_param('ovt/DEVICE')
         
         # self.buffer contains tuples of (RosImage, CameraInfo representing camera for that image)
@@ -139,6 +156,10 @@ class OVTDataInterface:
 
 
     def _handle_compute_request(self, images, classes):
+        """
+        assumes only 1 item in images
+        """
+
         # Update from the most recent tensors 
         images_msg = list(images)
         
@@ -150,10 +171,15 @@ class OVTDataInterface:
         
         #### DEBUG
         print(f"CLIP Inference Time: {rospy.get_time() - t1}")
-        mask = torch.argmax(class_probs[0], dim=0).float()
-        cv2_mask = get_cv2_mask(mask)
-        self.save_img(images[0].permute(1,2,0).cpu().numpy(),base='rgb')
-        self.save_img(cv2_mask,base='semantic')
+        classifications = torch.argmax(class_probs[0], dim=0)
+        classifications = classifications / classifications.max()
+        masked_overlay, mask = get_turbo_image(images[0], classifications)
+        time = rospy.get_time()
+
+        base_path = os.path.join(VOXSEG_ROOT_DIR, 'output')
+        if not os.path.exists(base_path):
+            os.mkdir(base_path)
+        masked_overlay.save(os.path.join(base_path, f'{self.base_name}_{time}.jpg'))
 
 
         all_probs_msg = []
@@ -189,19 +215,23 @@ class OVTDataInterface:
                 pub = self.class_pub_register[current_class]
                 pub.publish(prob_image_msg)
         
-
     def image_callback(self,
                  input_rgb_image: CompressedImage):
         self.tick += 1
         if self.tick % self.rate != 0:
             return
-
-        if not self._lock_buffer:
-            self.buffer.append(input_rgb_image)
-            print(f"{len(self.buffer)} images in buffer")
-        else:
-            print('buffer currently locked')    
         
+        self.compute_and_publish(input_rgb_image)
+    
+    @request_timer
+    def compute_and_publish(self,
+                 input_rgb_image: CompressedImage):
+        image_list = [input_rgb_image]
+        
+        all_probs_msg = self._handle_compute_request(image_list, self.classes)
+        self.publish_probs_and_tfs(all_probs_msg)
+    
+
     def class_name_callback(self, msg):
         classes = list(msg.classes)
         print(f'Classes recieved: {classes}')
@@ -225,6 +255,7 @@ class OVTDataInterface:
 
 
     def save_img(self, img, base='rgb'):
+
         
         cv2.imwrite(F"{VOXSEG_ROOT_DIR}/output/{base}_{self.tick // self.rate}.png", img)
 
