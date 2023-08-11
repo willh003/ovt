@@ -66,7 +66,7 @@ class OVTDataInterface:
         self.classes = list(rospy.get_param('/ovt/CLASSES'))
         self.base_name = rospy.get_param('/ovt/BASE_NAME')
 
-        self.encoder = WSImageEncoder(VOXSEG_ROOT_DIR, config='configs/ovt.yaml')
+        self.encoder = WSImageEncoder(VOXSEG_ROOT_DIR, config='configs/ovt_small.yaml')
         #self.encoder = WSImageEncoder(VOXSEG_ROOT_DIR, config='configs/ovt_small.yaml')
         self.device = rospy.get_param('ovt/DEVICE')
         
@@ -85,14 +85,14 @@ class OVTDataInterface:
         prob_publisher_topics = list(rospy.get_param('/ovt/PROB_TOPICS'))
         self.class_pub_register = {}
         for i, topic in enumerate(prob_publisher_topics):
-            pub = Publisher(topic, RosImage, queue_size=1000)
+            pub = Publisher(topic, RosImage, queue_size=10)
             self.class_pub_register[self.classes[i]] = pub
 
-        self.mask_pub = Publisher('/ovt/masked_image', RosImage, queue_size=1000)
+        self.mask_pub = Publisher('/ovt/masked_image', RosImage, queue_size=10)
 
         # Robot Input Subscriptions
         robot_image_topic = rospy.get_param('/ovt/ROBOT_IMAGE_TOPIC')
-        RospySubscriber(robot_image_topic, CompressedImage, callback=self.image_callback,queue_size=10000)
+        RospySubscriber(robot_image_topic, CompressedImage, callback=self.image_callback,queue_size=1)
     
         print('OVT Interface Initialized')
         self.time_request = time.time()
@@ -142,22 +142,23 @@ class OVTDataInterface:
         classes = [str(c) for c in classes]
         
         images = torch_from_img_array_msg(images_msg).float().to(self.device)
-        t1  = rospy.get_time()
+        t1  = rospy.get_time() # replace with torch events
         class_probs = self.encoder.call_with_classes(images, classes, use_adapter=True)
         
         #### DEBUG
         print(f"CLIP Inference Time: {rospy.get_time() - t1}")
         classifications = torch.argmax(class_probs[0], dim=0)
         classifications = classifications / classifications.max()
-        masked_overlay, mask, cv2_overlay = get_turbo_image(images[0], classifications)
+        masked_overlay, mask, image, cv2_overlay = get_turbo_image(images[0], classifications)
         mask_msg = bridge.cv2_to_imgmsg(cv2_overlay, header=images_msg[0].header)
         self.mask_pub.publish(mask_msg)
 
         time = rospy.get_time()
-        base_path = os.path.join(VOXSEG_ROOT_DIR, 'output')
+        base_path = os.path.join(VOXSEG_ROOT_DIR, 'output1')
         if not os.path.exists(base_path):
             os.mkdir(base_path)
-        masked_overlay.save(os.path.join(base_path, f'{self.base_name}_{time}.jpg'))
+        masked_overlay.save(os.path.join(base_path, f'{self.base_name}_mask_{time}.jpg'))
+        image.save(os.path.join(base_path, f'{self.base_name}_image_{time}.jpg'))
 
 
         all_probs_msg = []
