@@ -25,11 +25,14 @@ import numpy as np
 
 def get_turbo_image(img, mask):
     """
-    img: torch.tensor, (3, h, w) vals between 0,1
+    img: torch.tensor, BGR, (3, h, w) vals between 0,1
     mask: torch.tensor, (h,w) vals between 0,256
     returns: PIL Image
     """
+
+    
     img_np = img.permute(1,2,0).cpu().numpy()
+    img_np = img_np[:, :, ::-1] # convert to RGB
     mask_np = mask.cpu().numpy()*255.0
 
     color_map = cv2.applyColorMap(mask_np.astype(np.uint8), cv2.COLORMAP_TURBO)

@@ -84,7 +84,7 @@ class OVTDataInterface:
         # Elevation Mapping Plugin Publishers
         self.define_pub_register()
 
-        self.mask_pub = Publisher('/ovt/masked_image', RosImage, queue_size=10)
+        self.mask_pub = Publisher('/ovt/masked_image', RosImage, queue_size=1)
 
         # Robot Input Subscriptions
         robot_image_topic = rospy.get_param('/ovt/ROBOT_IMAGE_TOPIC')
@@ -98,7 +98,7 @@ class OVTDataInterface:
         prob_publisher_topics = list(rospy.get_param('/ovt/PROB_TOPICS'))
         self.class_pub_register = {}
         for i, topic in enumerate(prob_publisher_topics):
-            pub = Publisher(topic, RosImage, queue_size=10)
+            pub = Publisher(topic, RosImage, queue_size=1)
             self.class_pub_register[self.classes[i]] = pub
 
     def _handle_compute_request(self, images, classes):
@@ -117,7 +117,9 @@ class OVTDataInterface:
         # perform computation
         class_probs = self.encoder.call_with_classes(images, classes, use_adapter=True)        
         classifications = torch.argmax(class_probs[0], dim=0)
-        classifications = classifications / classifications.max()
+        classifications = classifications / classifications.max() if classifications.max() != 0 else classifications
+
+        print(classifications.float().mean())
         
         # get and publish masks
         masked_overlay, mask, image, cv2_overlay = get_turbo_image(images[0], classifications)

@@ -371,7 +371,7 @@ class OVTArch(MaskFormer):
 
     def forward(self, images, class_names, text_model, embed_size=768, use_adapter=False):
         """
-        images: b, c, h, w
+        images: b, c, h, w, in BGR format
         class_names: dict of class to prompts or list of class names
         text_model: model with a function called get_text_features, which returns n, 768 text features for classes
         embed_size: 768 for large, 512 for small
