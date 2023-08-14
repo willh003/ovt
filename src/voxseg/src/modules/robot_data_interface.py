@@ -46,7 +46,7 @@ def request_timer(callback_func):
 class OVTDataInterface:
     def __init__(self):
         """
-        For now, you will only be able to define exactly three classes
+        For now, you will only be able to define exactly two classes
         This is because each needs its own layer in elevation_mapping_cupy, which has a separate yaml
         """
 
@@ -88,7 +88,7 @@ class OVTDataInterface:
 
         # Robot Input Subscriptions
         robot_image_topic = rospy.get_param('/ovt/ROBOT_IMAGE_TOPIC')
-        RospySubscriber(robot_image_topic, CompressedImage, callback=self.image_callback,queue_size=1)
+        RospySubscriber(robot_image_topic, CompressedImage, callback=self.image_callback,queue_size=1, buff_size=2**24)
     
         print('OVT Interface Initialized')
         self.time_request = time.time()
@@ -112,20 +112,17 @@ class OVTDataInterface:
         images_msg = list(images)
         classes = [str(c) for c in classes]
         images = torch_from_img_array_msg(images_msg).float().to(self.device)
-        t1  = rospy.get_time() # replace with torch events
-        
+
+
         # perform computation
         class_probs = self.encoder.call_with_classes(images, classes, use_adapter=True)        
         classifications = torch.argmax(class_probs[0], dim=0)
         classifications = classifications / classifications.max() if classifications.max() != 0 else classifications
-
-        print(classifications.float().mean())
         
         # get and publish masks
         masked_overlay, mask, image, cv2_overlay = get_turbo_image(images[0], classifications)
         mask_msg = bridge.cv2_to_imgmsg(cv2_overlay, header=images_msg[0].header)
         self.mask_pub.publish(mask_msg)
-        print(f"CLIP Inference and ROS Serialization Time: {rospy.get_time() - t1}")
 
         # Save images
         if rospy.get_param('/ovt/SAVE_IMAGES'):
@@ -176,7 +173,18 @@ class OVTDataInterface:
         if self.tick % self.rate != 0:
             return
         
+        start = torch.cuda.Event(enable_timing=True)
+        end = torch.cuda.Event(enable_timing=True)
+
+        start.record()
+        
         self.compute_and_publish(input_rgb_image)
+
+        end.record()
+        # Waits for everything to finish running
+        torch.cuda.synchronize()
+
+        print(f"CLIP Inference and ROS Serialization Time: {start.elapsed_time(end) / 1000}")
     
     @request_timer
     def compute_and_publish(self,

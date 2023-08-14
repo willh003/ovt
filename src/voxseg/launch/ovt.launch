@@ -6,8 +6,8 @@
     <remap from="camera_info" to="/depth_camera_front_upper/depth/camera_info"/>
     <remap from="image_rect" to="/depth_camera_front_upper/depth/image_rect_raw"/>
     <remap from="points" to="/depth_camera_front/point_cloud_self_filtered"/>
-  </node> -->
-  
+  </node>
+   -->
 
 
     <group ns="ovt">
