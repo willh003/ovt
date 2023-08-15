@@ -187,8 +187,6 @@ All of the voxseg computations are handled by modules/server.py. The voxseg meth
   - requests a voxel class computation from the server, and returns the voxels with their corresponding classes
   - requires that the server has defined class names and images
 
-![alternative](./src/voxseg/src/good/ovt.png?raw=true)
-
 
 ## Acknowledgements
 Authors: Will Huey, Sean Brynjolfsson
