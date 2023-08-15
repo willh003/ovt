@@ -1,8 +1,10 @@
-# VoxSeg for Visual Navigation - ROS Repository
+# Open Vocabulary Traversability (OVT)
 
-Construct a voxel representation of clip embeddings in a scene, and visualize them through open vocabulary scene queries. 
+Compute CLIP embeddings live on a jetson, construct a voxel representation of the embeddings, and visualize them through open vocabulary scene queries. 
 
 This repo provides full support for rviz visualization. For visualizations in Nvidia Isaac Sim, see https://github.com/jolfss/voxvis
+
+![alternative](/src/voxseg/src/good/voxseg_good.png)
 
 ## Installation 
 - Create a new conda environment, and install

@@ -40,8 +40,8 @@ def get_turbo_image(img, mask):
 
     # Overlay the color map on the original image
     overlay = cv2.addWeighted(img_np.astype(np.uint8), 0.4, color_map, 0.6, 0)
-    output = Image.fromarray(overlay)
-    image = Image.fromarray(img_np.astype(np.uint8))
+    output = Image.fromarray(cv2.cvtColor(overlay, cv2.COLOR_BGR2RGB))
+    image = Image.fromarray(cv2.cvtColor(img_np.astype(np.uint8), cv2.COLOR_BGR2RGB))
 
     return output, Image.fromarray(color_map), image, overlay
 
