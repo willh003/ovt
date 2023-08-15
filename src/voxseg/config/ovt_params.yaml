@@ -2,7 +2,7 @@
 DEVICE: cuda
 BATCH_SIZE: 2 # NOTE: batch sizes above 2 are untested
 COMPUTE_PERIOD: 10
-USE_LARGE: false
+USE_LARGE: true
 SAVE_IMAGES: true
 
 # NOTE: the ith class will be published to the ith prob_topic
@@ -12,7 +12,7 @@ CLASSES:
 
 
 
-BASE_NAME: semantic
+BASE_NAME: color
 
 PROB_TOPICS:
   - /ovt/c1_probs

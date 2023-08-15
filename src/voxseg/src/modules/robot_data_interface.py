@@ -98,7 +98,7 @@ class OVTDataInterface:
         prob_publisher_topics = list(rospy.get_param('/ovt/PROB_TOPICS'))
         self.class_pub_register = {}
         for i, topic in enumerate(prob_publisher_topics):
-            pub = Publisher(topic, RosImage, queue_size=1)
+            pub = Publisher(topic, RosImage, queue_size=5)
             self.class_pub_register[self.classes[i]] = pub
 
     def _handle_compute_request(self, images, classes):
