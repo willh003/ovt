@@ -227,7 +227,6 @@ class OVSeg(MaskFormer):
 
             return processed_results
 
-
     def semantic_inference(self, mask_cls, mask_pred, image, class_names):
         mask_cls = F.softmax(mask_cls, dim=-1)[..., :-1]
         mask_pred = mask_pred.sigmoid()

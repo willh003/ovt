@@ -2,6 +2,8 @@ import torch
 import os
 
 VOXSEG_ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DEVICE = 'cuda'
+
 
 ################ SERVER PARAMS #################
 
@@ -22,7 +24,6 @@ K_RGB = torch.Tensor([[-575.6040,    0.0000,  360.0000,    0.0000],
                     [   0.0000,    0.0000,    0.0000,    1.0000]])
 
 K_DEPTH = None # if not CAMS_ALIGNED, then this must be set to something
-
 CAMS_ALIGNED = True
 
 ################# ROS INFO ####################
@@ -36,6 +37,7 @@ SERVER_NODE = 'voxseg_backend'
 CLIENT_NODE = 'voxseg_frontend'
 
 VOXEL_REQUEST_SERVICE = 'voxel_request'
+OVT_REQUEST_SERVICE = 'ovt_srv'
 
 RVIZ_NODE = 'voxseg_rviz'
 MARKER_TOPIC = 'voxseg_marker_topic'

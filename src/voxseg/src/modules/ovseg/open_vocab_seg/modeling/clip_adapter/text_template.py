@@ -138,10 +138,10 @@ class PredefinedPromptExtractor(PromptExtractor):
             text_features /= text_features.norm(dim=-1, keepdim=True)
             text_features_bucket.append(text_features)
         del text_inputs
+        
         # ensemble by averaging
         text_features = torch.stack(text_features_bucket).mean(dim=0)
         text_features = text_features / text_features.norm(dim=-1, keepdim=True)
-
         return text_features
 
 

@@ -1,11 +1,8 @@
 #!/usr/bin/env python
 
 import rospy
-from std_msgs.msg import Int32
-from voxseg.msg import TransformationMatrix
 from modules.client import VoxSegClient
 from modules.utils import load_images
-import numpy as np
 
 def send_images(client: VoxSegClient, image_dir=None):
     rate = rospy.Rate(hz=5)

@@ -1,27 +1,158 @@
 import os
-import argparse
-import glob
-import multiprocessing as mp
+
 import time
 import cv2
-import tqdm
 
-from detectron2.config import get_cfg
-
-from detectron2.projects.deeplab import add_deeplab_config
 from detectron2.data.detection_utils import read_image
-from detectron2.utils.logger import setup_logger
-from open_vocab_seg import add_ovseg_config
 
-from open_vocab_seg.utils import VisualizationDemo
-from detectron2.engine.defaults import DefaultPredictor
 
 import torch
+
+from torch.profiler import profile, record_function, ProfilerActivity
 import torch.nn.functional as F
 
-from ws.utils import *
+if os.getcwd().split('/')[-1] == 'ovseg':
+    # playground
+    from open_vocab_seg.ws_ovseg_model import WSImageEncoder
+else:
+    # ROS
+    from modules.ovseg.open_vocab_seg.ws_ovseg_model import WSImageEncoder
 
-WINDOW_NAME = "OVSeg"
+from PIL import Image
+import numpy as np
+
+
+
+def get_turbo_image(img, mask):
+    """
+    img: torch.tensor, BGR, (3, h, w) vals between 0,1
+    mask: torch.tensor, (h,w) vals between 0,256
+    returns: PIL Image
+    """
+
+    
+    img_np = img.permute(1,2,0).cpu().numpy()
+    img_np = img_np[:, :, ::-1] # convert to RGB
+    mask_np = mask.cpu().numpy()*255.0
+
+    color_map = cv2.applyColorMap(mask_np.astype(np.uint8), cv2.COLORMAP_TURBO)
+
+
+    # Overlay the color map on the original image
+    overlay = cv2.addWeighted(img_np.astype(np.uint8), 0.4, color_map, 0.6, 0)
+    output = Image.fromarray(overlay)
+    image = Image.fromarray(img_np.astype(np.uint8))
+
+    return output, Image.fromarray(color_map), image, overlay
+
+def save_masks(images, probs, base_name, img_nums=None):
+    if img_nums == None:
+        img_nums = range(len(images))
+    for i, (image, prob_mask) in enumerate(zip(images, probs)):
+        
+        classifications = torch.argmax(prob_mask, dim=0)
+        print(classifications.float().mean())
+        classifications = classifications / classifications.max()
+        masked_overlay, mask,_, _ = get_turbo_image(image, classifications)
+
+        num = img_nums[i]
+        print(num)
+        masked_overlay.save(os.path.join('test_output', f'{base_name}_{num}.jpg'))
+        mask.save(os.path.join('test_output', f'{base_name}_mask_{num}.jpg'))
+        
+
+def load_images(directory):
+
+    image_files = [f for f in os.listdir(directory) if (f.startswith('img_') or f.startswith('rgb_'))
+     and (f.endswith('.jpg') or f.endswith('.png'))]
+
+    images = []
+    image_num = []
+
+    
+
+
+    for img_file in image_files:
+        # Load image into PIL
+        img_path = os.path.join(directory, img_file)
+        image = read_image(img_path, format="BGR")
+        image_copy = image.copy()
+
+
+
+        num=img_file.split('_')[1].split('.')[0]
+        image_num.append(num)
+        
+        images.append(torch.from_numpy(image_copy).permute(2,0,1))
+    
+    return torch.stack(images), image_num
+
+def encoder_test(inp_folder, classes, use_large=False):
+    images, img_nums = load_images(inp_folder)
+
+    if use_large:
+        config='configs/ovt.yaml'
+    else:
+        config='configs/ovt_small.yaml'
+    
+    encoder =  WSImageEncoder(config=config, use_large=use_large)
+    print('model loaded')
+    
+    splits = list(range(0, len(images), 10))
+    splits.append(len(images)) # ensure the leftovers are still included
+    
+    all_masks = []
+    for i in range(len(splits) - 1): 
+        start = splits[i]
+        end = splits[i+1]
+
+        cur_images = images[start:end]
+        t1 = time.time()
+
+        adapt = encoder.call_with_classes(cur_images, classes, use_adapter=True)
+        all_masks = all_masks + [img for img in adapt]
+        
+        t2 = time.time()
+        print(F"inference time: {t2-t1}")
+
+        print(img_nums[start:end])
+        
+
+    all_masks_torch = torch.stack(all_masks)
+    save_masks(images, all_masks_torch, 'adapt', img_nums)
+        
+
+    # diff = adapt - no_adapt
+    
+def time_test(inp_folder, classes, use_large=False):
+    total_time_adapt = 0
+    total_time_no_adapt = 0
+
+    images, _ = load_images(inp_folder)
+    if use_large:
+        config='configs/ovt.yaml'
+    else:
+        config='configs/ovt_small.yaml'
+    
+    encoder =  WSImageEncoder(config=config, use_large=use_large)
+    print('model loaded')
+    
+    for i, image in enumerate(images):
+
+        t1 = time.time()
+        adapt = encoder.call_with_classes(image[None], classes, use_adapter=True)
+        total_time_adapt += time.time() - t1
+
+        t1 = time.time()
+        no_adapt = encoder.call_with_classes(image[None], classes, use_adapter=False)
+        total_time_no_adapt += time.time() - t1
+
+    total_time_adapt /= (len(images))
+    total_time_no_adapt /= (len(images))
+
+    print(f'Average adapt time: {total_time_adapt}')
+    print(f'Average no adapt time: {total_time_no_adapt}')
+
 
 def quick_test(inp_file, classes):
     
@@ -32,80 +163,12 @@ def quick_test(inp_file, classes):
     print(cmd)
     os.system(cmd)
 
-class Lightweight:
-    """
-    Implements ovseg inference in a usable manner
-    """
-
-    def __init__(self, model_type = 'ws'):
-        if model_type == 'ws':
-            config_file = 'configs/ovseg_ws_demo.yaml'
-            opts = ['MODEL.WEIGHTS', 'models/ovseg_swinbase_vitL14_ft_mpt.pth']
-        elif model_type == 'large':
-            config_file = 'configs/ovseg_swinB_vitL_demo.yaml'
-            opts = ['MODEL.WEIGHTS', 'models/ovseg_swinbase_vitL14_ft_mpt.pth']
-        elif model_type == 'small':
-            config_file = 'configs/ovseg_R101c_vitB_bs32_120k.yaml'
-            opts = ['MODEL.WEIGHTS', 'models/ovseg_R101c_vitB16_ft_mpt.pth.pt']
-        
-        cfg = get_cfg()
-        # for poly lr schedule
-        add_deeplab_config(cfg)
-        add_ovseg_config(cfg)
-        cfg.merge_from_file(config_file)
-        cfg.merge_from_list(opts)
-        cfg.freeze()
-
-        self.demo = VisualizationDemo(cfg)
-
-
-    def run(self, input, class_names, output = './pred.png'):
-        """
-        Currently only supports single images at a time. we may want to make this batched
-        """
-        setup_logger(name="fvcore")
-        logger = setup_logger()
-
-        if len(input) == 1:
-            input = glob.glob(os.path.expanduser(input[0]))
-            assert input, "The input path(s) was not found"
-        for path in tqdm.tqdm(input, disable=not output):
-            # use PIL, to be consistent with evaluation
-            img = read_image(path, format="BGR")
-            start_time = time.time()
-            predictions, visualized_output = self.demo.run_on_image(img, class_names)
-            logger.info(
-                "{}: {} in {:.2f}s".format(
-                    path,
-                    "detected {} instances".format(len(predictions["instances"]))
-                    if "instances" in predictions
-                    else "finished",
-                    time.time() - start_time,
-                )
-            )
-            if output:
-                if os.path.isdir(output):
-                    assert os.path.isdir(output), output
-                    out_filename = os.path.join(output, os.path.basename(path))
-                else:
-                    assert len(input) == 1, "Please specify a directory with output"
-                    out_filename = output
-                visualized_output.save(out_filename)
-            else:
-                cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_NORMAL)
-                cv2.imshow(WINDOW_NAME, visualized_output.get_image()[:, :, ::-1])
-                if cv2.waitKey(0) == 27:
-                    break  # esc to quit
 
 if __name__=='__main__':
-    # predictor = Lightweight()
-    # predictor.run(['test_data/test_18/img_640.jpg'], ['excavator', 'other'])
-    quick_test('batch_test/cubesphereconetorus/test_0/img_260.jpg', ['shiny'])
-    #quick_test('test_data/site_test/img_600.jpg', ['equipment', 'ground'])
-#quick_test()
-'''
-python train_net.py --num-gpu 1 --eval-only --config-file configs/ovseg_R101c_vitB_bs32_120k.yaml MODEL.WEIGHTS /home/pcgta/Documents/playground/ov-seg/models/ovseg_R101c_vitB16_ft_mpt.pth.pt DATASETS.TEST \(\"ade20k_sem_seg_val\",\) 
 
+    #quick_test('test_data/real_site/img_40.png', ['untraversable', 'traversable ground', 'obstacle'])
+    encoder_test('test_data/real_site_all', ['something an Anymal robot could walk on', 'other '], use_large=False)
+   # time_test('test_data/real_site_small', ['ground', 'other '], use_large=False)
+    
+    #prefix = "You are a robot in a simulation environment. This photo is {} "
 
-python demo.py --config-file configs/ovseg_swinB_vitL_demo.yaml --class-names 'Oculus' 'Ukulele'  --input ./resources/demo_samples/sample_03.jpeg --output ./pred --opts MODEL.WEIGHTS 
-'''

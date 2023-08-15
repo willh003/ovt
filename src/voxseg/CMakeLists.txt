@@ -13,6 +13,7 @@ find_package(catkin REQUIRED COMPONENTS
   geometry_msgs
   sensor_msgs
   costmap_2d
+  #depth_image_proc
   message_generation
 )
 
@@ -52,13 +53,12 @@ find_package(catkin REQUIRED COMPONENTS
 ## Generate messages in the 'msg' folder
 add_message_files(
    FILES
-   TransformationMatrix.msg
-   StrArrKV.msg
-   DepthImageInfo.msg
+   #DepthImageInfo.msg
    Classes.msg
    VoxelGrid.msg
    WorldInfo.msg
-
+   MaskAndTF.msg
+   ImageArray.msg
  )
 
 ## Generate services in the 'srv' folder
@@ -66,6 +66,7 @@ add_service_files(
   DIRECTORY srv
   FILES
   VoxelComputation.srv
+  ImageSeg.srv
 
 )
 

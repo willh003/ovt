@@ -1,0 +1,32 @@
+# User
+DEVICE: cuda
+BATCH_SIZE: 2 # NOTE: batch sizes above 2 are untested
+COMPUTE_PERIOD: 10
+USE_LARGE: false
+SAVE_IMAGES: true
+
+# NOTE: the ith class will be published to the ith prob_topic
+CLASSES:
+  - something an Anymal robot could walk on
+  - other
+
+
+
+BASE_NAME: semantic
+
+PROB_TOPICS:
+  - /ovt/c1_probs
+  - /ovt/c2_probs
+
+# ROS
+ROBOT_IMAGE_TOPIC: /wide_angle_camera_front/image_color_rect/compressed
+CLASS_TOPIC: /ovt/classes_topic
+IMAGE_TOPIC: /ovt/image_topic
+RESET_TOPIC: /ovt/reset_topic
+CHANGE_BUFFER_SIZE_TOPIC: /ovt/change_buffer_size
+CHANGE_RATE_TOPIC: /ovt/change_rate
+
+REQUEST_SERVICE: /ovt/request_computation
+
+SERVER_NODE: ovt_backend
+DATA_INTERFACE_NODE: ovt_data_interface

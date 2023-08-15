@@ -8,8 +8,8 @@ from visualization_msgs.msg import Marker, MarkerArray
 from std_msgs.msg import ColorRGBA
 from sensor_msgs.msg import Image as RosImage
 from geometry_msgs.msg import Vector3, Point, Quaternion, Pose
+from cv_bridge import CvBridge
 from voxseg.srv import VoxelComputationResponse
-#from costmap_2d.msg import VoxelGrid
 
 # python imports
 import numpy as np
@@ -22,7 +22,74 @@ from matplotlib.patches import Patch
 from std_msgs.msg import String
 import json
 import rospy
+from collections import deque
 
+import cv2
+
+
+
+
+################# Data Structures #####################
+
+from collections import deque
+
+class BufferLock:
+    def __init(self):
+        self.lock_buffer = False
+        
+    def __enter__(self):
+        return self  # The object to be used within the 'with' block
+    
+    def __exit__(self, exc_type, exc_value, traceback):
+        print("Exiting the context")
+        # Handle any cleanup or resource release here
+
+class TriggerBuffer:
+    def __init__(self, maxlen,  fn, fold_fn = None, clear_on_trigger=True):
+        """
+        A buffer which, when full, will call fold_fn on its contents, and then call map_fn on the outputs of the fold
+        
+        If fold_fn is None, then it will just call the map on the original buffer
+
+        fn must be a void function on an iterable 
+        
+        Requires: 
+            fold_fn returns an iterable
+
+            map_fn returns void
+        
+        """
+        self.fold_fn = fold_fn
+        self.fn = fn
+        self.clear_on_trigger=clear_on_trigger
+        self.data = deque(maxlen=maxlen)
+
+    def append(self, item):
+        self.data.append(item)
+        if len(self.data) == self.data.maxlen:
+
+            if self.fold_fn:
+                folded = self.fold_fn(self.data).copy()
+            else:
+                folded = self.data.copy()
+
+            self.fn(folded)
+            
+            if self.clear_on_trigger:
+                self.data.clear()
+
+    def clear(self):
+        self.data.clear()
+
+    def __len__(self):
+        return len(self.data)
+
+    def __repr__(self):
+        return f'TriggerBuffer {str(list(self.data))}, maxlen {self.data.maxlen}'
+
+    def __iter__(self):
+        return iter(self.data)
+    
 ################### Voxel Projection ####################
 
 def update_grids_aligned(feature_map, voxels, feature_grid, grid_count):
@@ -285,7 +352,7 @@ def get_cam_msg(extrinsics):
     """
     return np.reshape(extrinsics, (16,)).tolist()
 
-def get_image_msg(image, timestamp) -> RosImage:
+def get_image_msg(image, timestamp=None) -> RosImage:
     """
     Inputs:
         image: a numpy array containing rgb image data, shape (h,w,c)
@@ -296,7 +363,8 @@ def get_image_msg(image, timestamp) -> RosImage:
     img_msg.height = h
     img_msg.encoding = "rgb8"  # Set the encoding to match your image format
     img_msg.data = image.tobytes()
-    img_msg.header.stamp = timestamp
+    if timestamp:
+        img_msg.header.stamp = timestamp
     img_msg.header.frame_id = 'img_frame'
 
     return img_msg
@@ -318,6 +386,31 @@ def get_depth_msg(depth_map, timestamp) -> Image:
 
     return depth_msg
 
+def decode_compressed_image_msg(image_msg, bridge):
+
+    img = bridge.compressed_imgmsg_to_cv2(image_msg, desired_encoding="passthrough")
+    np_image = np.array(img)
+    np_image = np_image[:, :, ::-1] # convert to BGR
+    np_image = np.moveaxis(np_image, -1, 0) # convert to 3,H,W
+    return np_image
+
+def torch_from_img_array_msg(images):
+    """
+    Inputs: 
+        images: list of sensor_msgs/Image objects
+    Returns:
+        torch tensor, shape (B, 3, h, w), containing all the images
+    """
+    
+
+    bridge = CvBridge()
+
+    all_images = []
+    for i, image_msg in enumerate(images):
+        
+        all_images.append(decode_compressed_image_msg(image_msg, bridge))
+
+    return torch.from_numpy(np.stack(all_images))
 
 def convert_dict_to_dictionary_array(dictionary):
 
@@ -344,7 +437,7 @@ def convert_dictionary_array_to_dict(dictionary_jsons):
 
     return result_dict
 
-def voxels_from_srv(msg: VoxelComputationResponse):
+def voxels_from_srv(msg):
     """
     Given a VoxelComputationRespons msg, extract the voxel structure containing classes
     Returns:
@@ -363,6 +456,15 @@ def voxels_from_srv(msg: VoxelComputationResponse):
 
 
 ################ Data Saving ##################
+
+def get_cv2_mask(mask):
+    '''
+    img: (n, m) torch tensor
+    '''
+    mask_np = (mask/mask.max()).cpu().numpy()*255.
+    color_map = cv2.applyColorMap(mask_np.astype(np.uint8), cv2.COLORMAP_JET)
+    return color_map
+
 
 def load_images(directory):
     """

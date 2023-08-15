@@ -1,0 +1,7 @@
+# ImageSeg.srv
+sensor_msgs/CompressedImage[] images
+std_msgs/String[] classes
+---
+# the nth ImageArray in prob_images is a set of c monocular images containing
+# the probabilities for the c classes
+voxseg/ImageArray[] prob_images
