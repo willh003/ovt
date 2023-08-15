@@ -4,7 +4,8 @@ Compute CLIP embeddings live on a jetson, construct a voxel representation of th
 
 This repo provides full support for rviz visualization. For visualizations in Nvidia Isaac Sim, see https://github.com/jolfss/voxvis
 
-![alternative](/src/voxseg/src/good/voxseg_good.png)
+![alternative](./src/voxseg/src/good/voxseg_merged.png?raw=true)
+
 
 ## Installation 
 - Create a new conda environment, and install
