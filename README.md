@@ -4,7 +4,11 @@ Compute CLIP embeddings live on a jetson, construct a voxel representation of th
 
 This repo provides full support for rviz visualization. For visualizations in Nvidia Isaac Sim, see https://github.com/jolfss/voxvis
 
-![alternative](/src/voxseg/src/good/voxseg_good.png)
+![alternative](/src/voxseg/src/good/voxseg_merged.png)
+Red voxels are classified as obstacles, yellow as untraversable, and green as traversable.
+
+![alternative](/src/voxseg/src/good/merged_good.png)
+Blue represents the mask generated for traversable terrain
 
 ## Installation 
 - Create a new conda environment, and install
@@ -31,7 +35,46 @@ catkin build voxseg
 source devel/setup.bash
 ```
 
-## Instructions for running voxseg 
+## Instructions for running open vocabulary segmentation on an Anymal D
+
+- Start ros
+```bash
+roscore
+```
+- To run with the simulation
+```bash
+cd ~/catkin_ws
+catkin build anymal_dodo_rsl
+source devel/setup.bash
+rosrun anymal_dodo_rsl sim.py
+```
+- To run with a rosbag
+```bash
+rosparam set use_sim_time true
+rosbag play --clock *.bag
+```
+- Launch the elevation mapping node: (first install elevation mapping cupy)
+```bash
+cd ~/catkin_ws
+catkin build elevation_mapping_cupy
+source devel/setup.bash
+roslaunch elevation_mapping_cupy anymal.launch
+```
+- Run the OVT predictor node
+```bash
+catkin build voxseg
+source devel/setup.bash
+conda activate ovseg
+roslaunch voxseg ovt.launch 
+```
+- Send new classes and toggle image saving
+```bash
+catkin build voxseg
+rostopic pub /ovt/classes_topic voxseg/Classes "classes: [floor, other]"
+rosparam set /ovt/SAVE_IMAGES false
+```
+
+## Instructions for running voxel segmentation
 IMPORTANT: whenever you open a new terminal to run the nodes, make sure you run ```source devel/setup.bash```
 
 Basic Example:
